@@ -1,33 +1,24 @@
 import os
 import socket
-import subprocess
 import time
 import signal
 import sys
 import struct
-
+import json
 import threading
-
-lock = threading.Lock()
-
-"""
-one thread for talking with the server
-one thread for executing tasks from the server
-
-
-"""
-
-
 from queue import Queue
 
-import json
+from reverse_ssh_task import ReverseSSHTask
+lock = threading.Lock()
+
+
 
 #TODO Implement logger
 
-#Received messages will be inserted to this que so others can process them
+# Received messages will be inserted to this que so others can process them
 received_queue = Queue()
 
-#Messages that are scheduled to send will be inserted to this que so comms can send them
+# Messages that are scheduled to send will be inserted to this que so comms can send them
 will_send_queue = Queue()
 
 
@@ -41,6 +32,8 @@ class Client(object):
         self.socket = None
         self.username = username
         self.password = password
+        # This is a crappy way to put it here... CS 2340 game weak
+        self.running_processes = {}
 
     def register_signal_handler(self):
         signal.signal(signal.SIGINT, self.quit_gracefully)
@@ -135,39 +128,39 @@ class Client(object):
         return data
 
 
-    def continuous_msg(self):
-        while 1:
-
-            self.send_message("AHmed")
-            time.sleep(1)
 
 
-
-def comms(client):
+def inbox_work(client):
+    #TODO optimize blocking
     while 1:
 
         print("Will read message! ")
         received_message = client.read_message()
 
         if received_message is not None and received_message != b'':
-            received_message = received_message.decode("utf-8")
-            received_queue.put(("server", "message", received_message))
+            json_package = received_message.decode("utf-8")
+            try:
+                json_package = json.loads(json_package)
+                payload = json_package["payload"]
+                type = json_package["type"]
+
+                received_queue.put(("server", type , payload))
+            except Exception as e:
+                print("Received impropper message " + str(e) + " message was " + str(received_message))
         else:
-            print("comms received weird " + str(received_message) )
-
-        # raw_msglen = client.socket.recv(4)
-        # print(raw_msglen)
-        # print(client.socket.recv(7))
+            print("comms received unexpected " + str(received_message) )
 
 
-        if will_send_queue.not_empty:
-            print("Attempting to send message")
-            message = will_send_queue.get()
-            client.send_message(message)
-            print("Sent message")
-        else:
-            time.sleep(0.1)
-        print("Finished reading and sending")
+def outbox_work(client):
+    #TODO optimize blocking
+    if will_send_queue.not_empty:
+        #print("Attempting to send message")
+        message = will_send_queue.get()
+        client.send_message(message)
+        #print("Sent message")
+    else:
+        time.sleep(0.1)
+    #print("Finished reading and sending")
 
 def main_logic(client):
     while 1:
@@ -175,27 +168,54 @@ def main_logic(client):
             message_block = received_queue.get()
 
             sender, type_of_message, message = message_block
-
-            if type_of_message is "action":
-                if message is "SSH":
+            # print("Main Logic Reporting! Sender " + str(sender) + " type_of_message " + type_of_message + " message " + message)
+            if type_of_message == "action":
+                if message == "SSH-Start":
                     print("Firing the ssh tunnel!")
-                    while 1:
-                        time.sleep(10)
+
+                    key_location ="/home/kaan/Desktop/centree-clientsupervisor/ssh_server_key"
+                    server_addr = "umb.kaangoksal.com"
+                    server_username = "ssh_server"
+
+                    reverse_ssh_job = ReverseSSHTask("main_server_reverse_ssh","started", key_location, server_addr, server_username, 22, 7000)
+                    reverse_ssh_job.start_connection()
+
+                    client.running_processes["SSH"] = reverse_ssh_job
+
+                elif message == "SSH-Stop":
+                    print("Stopping the ssh tunnel!")
+                    reverse_ssh_job = client.running_processes["SSH"]
+
+                    print(reverse_ssh_job.stop_connection())
+
             else:
                 print("Message received! " + str(message))
 
-def initialize_threads(client):
-    comms_thread = threading.Thread(target=comms, args=(client,))
-    comms_thread.setName("Communication Thread")
-    comms_thread.start()
 
+def initialize_threads(client):
+
+    # This thread receives messages from the server
+    receive_thread = threading.Thread(target=inbox_work, args=(client,))
+    receive_thread.setName("Receive Thread")
+    receive_thread.start()
+
+    # This thread sends messages to the server
+    send_thread = threading.Thread(target=outbox_work, args=(client,))
+    send_thread.setName("Send Thread")
+    send_thread.start()
+
+    # This thread listens to the received messages and does stuff according to them
     logic_thread = threading.Thread(target=main_logic, args=(client,))
     logic_thread.setName("Logic Thread")
     logic_thread.start()
 
 
 def main():
-    #TODO read a config file
+    # TODO read a config file
+    # SSH server config
+    # Tunnel Server config
+    # self identity
+
     client = Client(9000, "localhost", "device-1", "password-1")
     client.register_signal_handler()
     client.socket_create()
@@ -213,7 +233,7 @@ def main():
     except Exception as e:
         print('Error in main: ' + str(e))
     print("Amigos I go")
-    #client.socket.close()
+    # client.socket.close()
     return
 
 

@@ -154,7 +154,7 @@ class Tunnel_Server(object):
         while len(data) < n:
             packet = conn.recv(n - len(data))
             if not packet:
-                print("None detected")
+                #print("None detected")
                 return None
             data += packet
         #print("Debug recvall " + str(data))
@@ -229,19 +229,18 @@ def check_for_messages(server):
             # received_message = username_conn.recv(4096)
 
             received_message = server.read_message_from_connection(username_conn)
-            print("first blocking call here")
+            #print("first blocking call here")
             if received_message is not None and received_message != b'':
                 # print("received " + received_message.decode("utf-8") + " from " + username)
                 # print("byte form")
                 # print(received_message)
                 received_message = received_message.decode("utf-8")
                 client_received.put((username, "message", received_message))
-
-            # if not server.client_alive(username):
-            #     # print(received_message)
-            #     # print("client is dead")
-            #     server.remove_client(username)
-            #     client_received.put((username, "event", "disconnected"))
+            elif not server.client_alive(username):
+                # print(received_message)
+                # print("client is dead")
+                server.remove_client(username)
+                client_received.put((username, "event", "disconnected"))
 
         time.sleep(1)
     return
@@ -281,20 +280,39 @@ def UI(server):
                 elif type_of_event is "message":
                     ColorPrint.print_message("NORMAL", "message from " + str(username), message)
         elif user_input == "ssh":
-            print("Select Client")
-            available_clients = server.list_available_clients()
-            i = 0
-            for client in available_clients:
-                print(str(i) + " " + client)
+
+            print("[SSH MENU] Select Option (put in the number) ")
+            print("1)Start SSH")
+            print("2)Close SSH Connection")
+            print("3)Main Menu")
             user_input = input()
+            if user_input == "1":
+                print("Select Client")
+                available_clients = server.list_available_clients()
+                i = 0
+                for client in available_clients:
+                    print(str(i) + " " + client)
+                user_input = input()
 
-            outbox.put((list(available_clients)[int(user_input)], "action", "SSH"))
+                return_dict = {'type':"action" , "payload": "SSH-Start"}
+                return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
 
+                outbox.put((list(available_clients)[int(user_input)], "action", return_string))
+            elif user_input == "2":
+                print("Select Client")
+                available_clients = server.list_available_clients()
+                i = 0
+                for client in available_clients:
+                    print(str(i) + " " + client)
+                user_input = input()
 
-        print(user_input)
+                return_dict = {'type': "action", "payload": "SSH-Stop"}
+                return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
 
-            #UI_queue.task_done()
-    return
+                outbox.put((list(available_clients)[int(user_input)], "action", return_string))
+            elif user_input == "3":
+                continue
+
 
 def message_routing(server):
     while True:
