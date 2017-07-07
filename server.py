@@ -138,7 +138,6 @@ class Tunnel_Server(object):
         # We are unpacking a big endian struct which includes the length of the packet, struct makes sure that the header
         # which includes the length is always 4 bytes in length. '>I' indicates that the struct is a unsigned integer big endian
         # CS2110 game strong
-        print("Received message, will process it " + str(raw_msglen))
 
         msglen = struct.unpack('>I', raw_msglen)[0]
         # Read the message data
@@ -223,10 +222,10 @@ class Tunnel_Server(object):
 
 
 def check_for_messages(server):
+    #Implement select plz
     while True:
         for username in list(server.all_clients):
             username_conn = server.all_clients[username]
-            # received_message = username_conn.recv(4096)
 
             received_message = server.read_message_from_connection(username_conn)
             #print("first blocking call here")
@@ -234,8 +233,19 @@ def check_for_messages(server):
                 # print("received " + received_message.decode("utf-8") + " from " + username)
                 # print("byte form")
                 # print(received_message)
-                received_message = received_message.decode("utf-8")
-                client_received.put((username, "message", received_message))
+                json_package = received_message.decode("utf-8")
+
+
+                try:
+                    json_package = json.loads(json_package)
+                    payload = json_package["payload"]
+                    type = json_package["type"]
+
+                    client_received.put((username, type, payload))
+                except Exception as e:
+                    print("Received unexpected message " + str(e) + " " + received_message)
+
+
             elif not server.client_alive(username):
                 # print(received_message)
                 # print("client is dead")
@@ -321,10 +331,14 @@ def message_routing(server):
 
             username, type_of_event, message = new_block
 
+            print("New block " +str(new_block))
+
             if type_of_event is "message":
                 UI_queue.put(new_block)
             elif type_of_event is "event":
                 UI_queue.put(new_block)
+            elif type_of_event is "result":
+                print(message)
 
 
 

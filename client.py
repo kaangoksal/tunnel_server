@@ -6,6 +6,11 @@ import sys
 import struct
 import json
 import threading
+
+import getpass
+
+
+
 from queue import Queue
 
 from reverse_ssh_task import ReverseSSHTask
@@ -182,12 +187,32 @@ def main_logic(client):
 
                     client.running_processes["SSH"] = reverse_ssh_job
 
+                    return_dict = {'type': "result",
+                                   'payload': "ssh started",
+                                   'hostname': socket.gethostname(),
+                                   "system_user_name": str(getpass.getuser())}
+
+                    return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+
+                    print(return_string)
+
+                    will_send_queue.put(return_string)
+
                 elif message == "SSH-Stop":
                     print("Stopping the ssh tunnel!")
                     reverse_ssh_job = client.running_processes["SSH"]
 
                     print(reverse_ssh_job.stop_connection())
+                    return_dict = {'type': "result",
+                                  'payload': "ssh stopped",
+                                  'hostname': socket.gethostname(),
+                                  "system_user_name": str(getpass.getuser())}
 
+                    return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+
+                    print(return_string)
+
+                    will_send_queue.put(return_string)
             else:
                 print("Message received! " + str(message))
 
