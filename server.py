@@ -3,21 +3,19 @@ Inspired from
 https://github.com/buckyroberts/Turtle/blob/master/Multiple_Clients/server.py
 
 Author: Kaan Goksal
-
+8 JULY 2017
 
 one thread will read and write to the clients
 one thread will accept connections
 one thread will be user interface
 
-
-
 """
 
-#TODO create a client class
-#TODO finish comms
-#TODO finish UI
-#TODO add SSL
-#TODO Implement Logger
+# TODO create a client class
+# TODO finish comms
+# TODO finish UI
+# TODO add SSL
+# TODO Implement Logger
 
 import socket
 import sys
@@ -26,6 +24,8 @@ import signal
 import threading
 from queue import Queue
 import json
+import struct
+from Message import Message
 
 """
 
@@ -53,24 +53,21 @@ therefore your json encode would raise WTF error.
 
 """
 
-import struct
 
-
+lock = threading.Lock()
 client_received = Queue()
 outbox = Queue()
 
 UI_queue = Queue()
 
 
-class Tunnel_Server(object):
-
+class TunnelServer(object):
     def __init__(self, port, host=''):
-        #TODO get theese values from config
+        # TODO get these values from config
         self.host = host
         self.port = port
         self.socket = None
         self.all_connections = []
-        #self.all_addresses = []
         self.all_clients = {}
 
     def register_signal_handler(self):
@@ -114,10 +111,13 @@ class Tunnel_Server(object):
             self.socket_bind()
         return
 
-    def client_alive(self, client):
+    def is_client_alive(self, client):
         client_conn = self.all_clients[client]
         try:
-            client_conn.send(str.encode("ping"))
+
+            ping_message = Message("server", client, "utility", "ping")
+            client_conn.send(str.encode(ping_message.pack_to_json_string()))
+
         except Exception as e:
             print("Socket probably dead eh? " + str(e))
             return False
@@ -127,7 +127,6 @@ class Tunnel_Server(object):
         connected_clients = self.all_clients.keys()
         return connected_clients
 
-
     def read_message_from_connection(self, conn):
         """ Read message length and unpack it into an integer
         :param conn: the connection to the client, it is a socket object
@@ -135,8 +134,11 @@ class Tunnel_Server(object):
         raw_msglen = self._recvall(conn, 4)
         if not raw_msglen:
             return None
-        # We are unpacking a big endian struct which includes the length of the packet, struct makes sure that the header
-        # which includes the length is always 4 bytes in length. '>I' indicates that the struct is a unsigned integer big endian
+
+        # We are unpacking a big endian struct which includes
+        # the length of the packet, struct makes sure that the header
+        # which includes the length is always 4 bytes in length. '>I'
+        # indicates that the struct is a unsigned integer big endian
         # CS2110 game strong
 
         msglen = struct.unpack('>I', raw_msglen)[0]
@@ -153,15 +155,13 @@ class Tunnel_Server(object):
         while len(data) < n:
             packet = conn.recv(n - len(data))
             if not packet:
-                #print("None detected")
                 return None
             data += packet
-        #print("Debug recvall " + str(data))
         return data
 
     def send_message_to_client(self, client, output_str):
-        #TODO throw client not found exception
-        #TODO throw socket closed exception
+        # TODO throw client not found exception
+        # TODO throw socket closed exception
         """ Sends message to the client
          :param client: the username of the client
          :param output_str: string message that will go to the server
@@ -169,7 +169,8 @@ class Tunnel_Server(object):
         client_socket = self.all_clients[client]
 
         byte_array_message = str.encode(output_str)
-        #We are packing the lenght of the packet to unsigned big endian struct to make sure that it is always constant length
+        # We are packing the length of the packet to
+        #  unsigned big endian struct to make sure that it is always constant length
         client_socket.send(struct.pack('>I', len(byte_array_message)) + byte_array_message)
 
     def remove_client(self, client):
@@ -181,12 +182,11 @@ class Tunnel_Server(object):
         self.all_clients.pop(client)
         self.all_connections.remove(client_conn)
 
-
-        #client_conn.shutdown(2)
+        # client_conn.shutdown(2)
         client_conn.close()
 
     def accept_connections(self):
-        #TODO authentication, Can use RSA
+        # TODO authentication, Can use RSA
 
         """ Accept connections from multiple clients and save to list """
         for c in self.all_connections:
@@ -194,75 +194,80 @@ class Tunnel_Server(object):
         self.all_connections = []
         # self.all_addresses = []
         while 1:
+
             try:
+                # lock.acquire()
                 conn, address = self.socket.accept()
                 conn.setblocking(1)
-                #TODO check whether it blocks if server does not send anything after connection
+                # TODO check whether it blocks if server does not send anything after connection
 
-                json_package = self.read_message_from_connection(conn).decode("utf-8")
-                json_package = json.loads(json_package)
-                address = address + (json_package["hostname"],)
+                # This is a special message since it is authentication
+                json_string = self.read_message_from_connection(conn).decode("utf-8")
+
+                print("Accepting connection " + str(json_string))
+
+                # new_message = Message.json_string_to_message(json_string)
+                json_package = json.loads(json_string)
                 username = json_package["username"]
                 password = json_package["password"]
-                #TODO add authentication if problem just kick the client and report
+                hostname = json_package["hostname"]
+                host_system_username = json_package["host_system_username"]
+
+                # TODO add authentication if problem just kick the client and report
             except Exception as e:
                 ColorPrint.print_message("ERROR", "accept_connections", 'Error accepting connections: %s' % str(e))
                 # Loop indefinitely
                 continue
+                # lock.release()
+            print("Jumped to here")
             self.all_connections.append(conn)
-            #self.all_addresses.append(address)
+            # self.all_addresses.append(address)
             self.all_clients[username] = conn
-            #Put the newly connected client to the list
-            #UI_queue.put("A new connection is in the house with " + str(conn) + " " + str (address) ,True)
 
-            client_received.put((username, "event", "connected"))
+            print("All clients " + str(self.all_clients))
+            # Put the newly connected client to the list
 
-            #print('\nConnection has been established: {0} ({1})'.format(address[-1], address[0]))
-        return
+            client_connected_message = Message(username, "server", "event", "Connected")
+
+            client_received.put(client_connected_message)
 
 
 def check_for_messages(server):
-    #Implement select plz
+    # Implement select plz
     while True:
         for username in list(server.all_clients):
+            # TODO there is a blocking call here, implement select()
             username_conn = server.all_clients[username]
 
             received_message = server.read_message_from_connection(username_conn)
-            #print("first blocking call here")
-            if received_message is not None and received_message != b'':
-                # print("received " + received_message.decode("utf-8") + " from " + username)
-                # print("byte form")
-                # print(received_message)
-                json_package = received_message.decode("utf-8")
 
+            if received_message is not None and received_message != b'':
+
+                json_string = received_message.decode("utf-8")
 
                 try:
-                    json_package = json.loads(json_package)
-                    payload = json_package["payload"]
-                    type = json_package["type"]
+                    new_message = Message.json_string_to_message(json_string)
+                    client_received.put(new_message)
 
-                    client_received.put((username, type, payload))
                 except Exception as e:
                     print("Received unexpected message " + str(e) + " " + received_message)
 
-
-            elif not server.client_alive(username):
-                # print(received_message)
-                # print("client is dead")
+            elif not server.is_client_alive(username):
                 server.remove_client(username)
                 client_received.put((username, "event", "disconnected"))
 
         time.sleep(1)
-    return
+
 
 def send_messages(server):
     while True:
         departure_message = outbox.get()
 
-        username, type_of_message, message = departure_message
+        # username, type_of_message, message = departure_message
 
-        server.send_message_to_client(username, message)
-        print("Sent Message to client " + str(username) + " " + str(message) + " LEN " + str(len(message)))
+        server.send_message_to_client(departure_message.to, departure_message.pack_to_json_string())
+
+        print("Sent Message to client " + departure_message.pack_to_json_string())
 
 
 def accept_connections(server):
@@ -271,8 +276,8 @@ def accept_connections(server):
     server.accept_connections()
     return
 
-def UI(server):
 
+def ui(server):
     while True:
         print("Please input command [ssh, read_messages]")
         user_input = input()
@@ -280,15 +285,16 @@ def UI(server):
             print("Listing messages")
             print(UI_queue.not_empty)
             while UI_queue.not_empty:
-                #UI_queue.get(block=True) #Blocks till a message appears!
+                # UI_queue.get(block=True) #Blocks till a message appears!
                 new_block = UI_queue.get()
 
-                username, type_of_event, message = new_block
+                # username, type_of_event, message = new_block
 
-                if type_of_event is "event":
-                    ColorPrint.print_message("OkBLUE", "event from " + str(username), message)
-                elif type_of_event is "message":
-                    ColorPrint.print_message("NORMAL", "message from " + str(username), message)
+                if new_block.type is "event":
+                    ColorPrint.print_message("OkBLUE", "event from " + str(new_block.sender), new_block.payload)
+                elif new_block.type is "message":
+                    ColorPrint.print_message("NORMAL", "message from " + str(new_block.sender), new_block.payload)
+
         elif user_input == "ssh":
 
             print("[SSH MENU] Select Option (put in the number) ")
@@ -297,17 +303,25 @@ def UI(server):
             print("3)Main Menu")
             user_input = input()
             if user_input == "1":
-                print("Select Client")
+                print("[SSH MENU 2] Select Client")
                 available_clients = server.list_available_clients()
                 i = 0
                 for client in available_clients:
                     print(str(i) + " " + client)
+                print(str(len(available_clients)) + " Cancel")
                 user_input = input()
 
-                return_dict = {'type':"action" , "payload": "SSH-Start"}
-                return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+                if int(user_input) < len(available_clients):
+                    new_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Start")
 
-                outbox.put((list(available_clients)[int(user_input)], "action", return_string))
+                    # return_dict = {'type':"action" , "payload": "SSH-Start"}
+                    # return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+
+                    # outbox.put((lists(available_clients)[int(user_input)], "action", return_string))
+                    outbox.put(new_message)
+                else:
+                    pass
+
             elif user_input == "2":
                 print("Select Client")
                 available_clients = server.list_available_clients()
@@ -316,35 +330,38 @@ def UI(server):
                     print(str(i) + " " + client)
                 user_input = input()
 
-                return_dict = {'type': "action", "payload": "SSH-Stop"}
-                return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+                # return_dict = {'type': "action", "payload": "SSH-Stop"}
+                # return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+                #
+                # outbox.put((list(available_clients)[int(user_input)], "action", return_string))
 
-                outbox.put((list(available_clients)[int(user_input)], "action", return_string))
+                close_ssh_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Stop")
+
+                outbox.put(close_ssh_message)
+
             elif user_input == "3":
                 continue
 
 
-def message_routing(server):
+def message_routing():
     while True:
         if client_received.not_empty:
             new_block = client_received.get()
 
-            username, type_of_event, message = new_block
+            # username, type_of_event, message = new_block
 
-            print("New block " +str(new_block))
+            print("DEBUG message routing " + str(new_block))
 
-            if type_of_event is "message":
+            if new_block.type is "message":
                 UI_queue.put(new_block)
-            elif type_of_event is "event":
+            elif new_block.type is "event":
                 UI_queue.put(new_block)
-            elif type_of_event is "result":
-                print(message)
-
-
+            elif new_block.type is "result":
+                print(new_block.payload)
 
 
 def initialize_threads():
-    server = Tunnel_Server(9000)
+    server = TunnelServer(9000)
     server.register_signal_handler()
 
     accept_connections_thread = threading.Thread(target=accept_connections, args=(server,))
@@ -359,15 +376,14 @@ def initialize_threads():
     send_thread.setName("Send Thread")
     send_thread.start()
 
-    message_router_thread = threading.Thread(target=message_routing, args=(server,))
+    message_router_thread = threading.Thread(target=message_routing)
     message_router_thread.setName("Message Router Thread")
     message_router_thread.start()
 
-    user_interface_thread = threading.Thread(target=UI, args=(server,))
+    user_interface_thread = threading.Thread(target=ui, args=(server,))
     user_interface_thread.setName("UI Thread")
     user_interface_thread.start()
     return
-
 
 
 initialize_threads()

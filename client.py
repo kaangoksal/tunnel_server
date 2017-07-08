@@ -6,19 +6,15 @@ import sys
 import struct
 import json
 import threading
-
+from Message import Message
+from queue import Queue
 import getpass
 
-
-
-from queue import Queue
 
 from reverse_ssh_task import ReverseSSHTask
 lock = threading.Lock()
 
-
-
-#TODO Implement logger
+# TODO Implement logger
 
 # Received messages will be inserted to this que so others can process them
 received_queue = Queue()
@@ -27,11 +23,10 @@ received_queue = Queue()
 will_send_queue = Queue()
 
 
-
 class Client(object):
 
     def __init__(self, port, host, username, password):
-        #self.serverHost = 'localhost'
+        # self.serverHost = 'localhost'
         self.serverHost = host
         self.serverPort = port
         self.socket = None
@@ -55,7 +50,6 @@ class Client(object):
                 print('Could not close connection %s' % str(e))
                 # continue
         sys.exit(0)
-        return
 
     def socket_create(self):
         """ Create a socket """
@@ -75,14 +69,35 @@ class Client(object):
             time.sleep(5)
             raise
         try:
-            return_dict = {'username': self.username, 'password': self.password, 'hostname': socket.gethostname()}
+
+            return_dict = {
+                'username': self.username,
+                'password': self.password,
+                'hostname': socket.gethostname(),
+                'host_system_username': str(getpass.getuser())
+            }
+
             return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
             print(return_string)
+
             self.send_message(return_string)
+            # TODO look for auth confirmation
+            return True
+
         except socket.error as e:
             print("Cannot send hostname to server: " + str(e))
-            raise
-        return
+            return False
+
+    def reconnect(self):
+        self.socket.close()
+        self.socket_create()
+        connected = False
+        while not connected:
+            try:
+                connected = self.socket_connect()
+            except ConnectionRefusedError as e:
+                print("Connection refused, trying again in 5 seconds " + str(e))
+            time.sleep(5)
 
     def print_output(self, output_str):
         """ Prints command output """
@@ -97,10 +112,24 @@ class Client(object):
         """
         print("will send this " + str(output_str))
         byte_array_message = str.encode(output_str)
-        #We are packing the lenght of the packet to unsigned big endian struct to make sure that it is always constant length
+        # We are packing the lenght of the packet to unsigned big endian
+        #  struct to make sure that it is always constant length
         self.socket.send(struct.pack('>I', len(byte_array_message)) + byte_array_message)
 
         return
+
+    def is_server_alive(self):
+        server_conn = self.socket
+        try:
+
+            ping_message = Message(self.username, "server", "utility", "ping")
+            server_conn.send(str.encode(ping_message.pack_to_json_string()))
+
+        except Exception as e:
+            print("Socket probably dead eh? " + str(e))
+            return False
+        return True
+
     def read_message(self):
         """ Read message length and unpack it into an integer
         """
@@ -108,8 +137,10 @@ class Client(object):
         print("First blocking call here!")
         if not raw_msglen:
             return None
-        # We are unpacking a big endian struct which includes the length of the packet, struct makes sure that the header
-        # which includes the length is always 4 bytes in length. '>I' indicates that the struct is a unsigned integer big endian
+        # We are unpacking a big endian struct which includes the length of the packet,
+        # struct makes sure that the header
+        # which includes the length is always 4 bytes in length.
+        # '>I' indicates that the struct is a unsigned integer big endian
         # CS2110 game strong
         print("Received message, will process it " +str(raw_msglen))
         msglen = struct.unpack('>I', raw_msglen)[0]
@@ -133,52 +164,58 @@ class Client(object):
         return data
 
 
-
-
 def inbox_work(client):
-    #TODO optimize blocking
+    # TODO optimize blocking
     while 1:
 
         print("Will read message! ")
         received_message = client.read_message()
 
         if received_message is not None and received_message != b'':
-            json_package = received_message.decode("utf-8")
+            json_string = received_message.decode("utf-8")
             try:
-                json_package = json.loads(json_package)
-                payload = json_package["payload"]
-                type = json_package["type"]
+                new_message = Message.json_string_to_message(json_string)
 
-                received_queue.put(("server", type , payload))
+                received_queue.put(new_message)
+
             except Exception as e:
-                print("Received impropper message " + str(e) + " message was " + str(received_message))
-        else:
-            print("comms received unexpected " + str(received_message) )
+                print("Received bad message " + str(e) + " message was " + str(received_message))
+        elif not client.is_server_alive():
+
+            print("fuck mate the server is dead! " + str(received_message))
+            client.reconnect()
+
 
 
 def outbox_work(client):
-    #TODO optimize blocking
+    # TODO optimize blocking
+    # TODO Implement logger
     if will_send_queue.not_empty:
-        #print("Attempting to send message")
+
         message = will_send_queue.get()
-        client.send_message(message)
-        #print("Sent message")
+
+        client.send_message(message.pack_to_json_string())
+
     else:
         time.sleep(0.1)
-    #print("Finished reading and sending")
+    # print("Finished reading and sending")
+
 
 def main_logic(client):
     while 1:
         if received_queue.not_empty:
             message_block = received_queue.get()
 
-            sender, type_of_message, message = message_block
-            # print("Main Logic Reporting! Sender " + str(sender) + " type_of_message " + type_of_message + " message " + message)
-            if type_of_message == "action":
-                if message == "SSH-Start":
+            # sender, type_of_message, message = message_block
+
+            # print("Main Logic Reporting! Sender " + str(sender) +
+            #  " type_of_message " + type_of_message + " message " + message)
+            if message_block.type == "action":
+                # TODO incorporate username, system username, hostname to message
+                if message_block.payload == "SSH-Start":
                     print("Firing the ssh tunnel!")
 
-                    key_location ="/home/kaan/Desktop/centree-clientsupervisor/ssh_server_key"
+                    key_location = "/home/kaan/Desktop/centree-clientsupervisor/ssh_server_key"
                     server_addr = "umb.kaangoksal.com"
                     server_username = "ssh_server"
 
@@ -187,34 +224,40 @@ def main_logic(client):
 
                     client.running_processes["SSH"] = reverse_ssh_job
 
-                    return_dict = {'type': "result",
-                                   'payload': "ssh started",
-                                   'hostname': socket.gethostname(),
-                                   "system_user_name": str(getpass.getuser())}
+                    # return_dict = {'type': "result",
+                    #                'payload': "ssh started",
+                    #                'hostname': socket.gethostname(),
+                    #                "system_user_name": str(getpass.getuser())}
+                    #
+                    # return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+                    #
+                    # print(return_string)
 
-                    return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+                    result_message = Message(client.username, "server", "result", "SSH Started")
 
-                    print(return_string)
+                    will_send_queue.put(result_message)
 
-                    will_send_queue.put(return_string)
-
-                elif message == "SSH-Stop":
+                elif message_block.payload == "SSH-Stop":
                     print("Stopping the ssh tunnel!")
+                    # TODO please refactor this "client.running processes" to another class... plz...
+                    # TODO incorporate hostname, system username to message
                     reverse_ssh_job = client.running_processes["SSH"]
 
                     print(reverse_ssh_job.stop_connection())
-                    return_dict = {'type': "result",
-                                  'payload': "ssh stopped",
-                                  'hostname': socket.gethostname(),
-                                  "system_user_name": str(getpass.getuser())}
+                    # return_dict = {'type': "result",
+                    #               'payload': "ssh stopped",
+                    #               'hostname': socket.gethostname(),
+                    #               "system_user_name": str(getpass.getuser())}
+                    #
+                    # return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+                    #
+                    # print(return_string)
 
-                    return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
+                    result_message = Message(client.username, "server", "result", "SSH Stopped")
 
-                    print(return_string)
-
-                    will_send_queue.put(return_string)
+                    will_send_queue.put(result_message)
             else:
-                print("Message received! " + str(message))
+                print("Message received! " + str(message_block))
 
 
 def initialize_threads(client):
@@ -248,7 +291,7 @@ def main():
         try:
             client.socket_connect()
         except Exception as e:
-            print("Error on socket connections: %s" %str(e))
+            print("Error on socket connections: %s" % str(e))
             time.sleep(5)
         else:
             break
