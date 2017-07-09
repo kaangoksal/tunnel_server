@@ -2,7 +2,10 @@ The Client
 =========
 
 
-`client.py` includes all the communication logic and also the client logic, It is not a good implementation. 
+`client.py` includes all methods for communicating with the server.
+
+`client_controller.py` includes logic and threads to operate the server. 
+Also it reads the messages and executes certain tasks. This should be factored to a different file.
 The client can execute certain tasks. Tasks are located in tasks folder. Each has their own class since they might have different
 requirements and functionality. However in future they might get revised in a better structure.
 
