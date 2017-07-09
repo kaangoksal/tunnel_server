@@ -1,17 +1,17 @@
-import os
-import socket
-import time
-import signal
-import sys
-import struct
-import json
-import threading
-from Message import Message
-from queue import Queue
 import getpass
+import json
+import os
+import signal
+import socket
+import struct
+import sys
+import threading
+import time
+from queue import Queue
 
+from Client.tasks.reverse_ssh_task import ReverseSSHTask
+from Message import Message
 
-from reverse_ssh_task import ReverseSSHTask
 lock = threading.Lock()
 
 # TODO Implement logger
