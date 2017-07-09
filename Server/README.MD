@@ -1,4 +1,5 @@
-**The Server**  
+The Server
+=========
 
 `server.py` file includes the server communication logic where it talks to the client, reads messages, 
 sends messages and accepts connections.   

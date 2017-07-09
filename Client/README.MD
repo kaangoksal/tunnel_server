@@ -1,4 +1,5 @@
-**The Client**
+The Client
+=========
 
 
 `client.py` includes all the communication logic and also the client logic, It is not a good implementation. 
