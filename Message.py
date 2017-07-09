@@ -1,6 +1,14 @@
+"""
+This library is for storing parsing and transporting messages in an organized way.
+
+Author: Kaan Goksal
+9th of JULY in the year of 2017
+
+"""
 
 import json
 
+# TODO add id and date stamp to the messages!
 
 class Message(object):
 

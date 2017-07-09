@@ -1,3 +1,11 @@
+"""
+This library is used for colorful messages on the command line... It is quite simple
+The ideal solution should be making a gui to the command line like in htop or powertop
+
+Author: Kaan Goksal
+9th of JULY in the year of 2017
+
+"""
 
 class bcolors:
     HEADER = '\033[95m'
