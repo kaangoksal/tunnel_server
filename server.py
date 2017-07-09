@@ -11,9 +11,6 @@ one thread will be user interface
 
 """
 
-# TODO create a client class
-# TODO finish comms
-# TODO finish UI
 # TODO add SSL
 # TODO Implement Logger
 
