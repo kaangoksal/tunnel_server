@@ -95,33 +95,32 @@ class ServerController(object):
                     if int(user_input) < len(available_clients):
                         new_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Start")
 
-                        # return_dict = {'type':"action" , "payload": "SSH-Start"}
-                        # return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
-
-                        # outbox.put((lists(available_clients)[int(user_input)], "action", return_string))
                         outbox.put(new_message)
                     else:
                         pass
 
                 elif user_input == "2":
-                    print("Select Client")
+                    print("[SSH MENU] Select Client to Close Connection")
                     available_clients = self.server.list_available_clients()
                     i = 0
                     for client in available_clients:
                         print(str(i) + " " + client)
+                    i = 0
+                    for client in available_clients:
+                        print(str(i) + " " + client)
+                    print(str(len(available_clients)) + " Cancel")
+
                     user_input = input()
-
-                    # return_dict = {'type': "action", "payload": "SSH-Stop"}
-                    # return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
-                    #
-                    # outbox.put((list(available_clients)[int(user_input)], "action", return_string))
-
-                    close_ssh_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Stop")
-
-                    outbox.put(close_ssh_message)
+                    if int(user_input) < len(available_clients):
+                        close_ssh_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Stop")
+                        outbox.put(close_ssh_message)
+                    else:
+                        pass
 
                 elif user_input == "3":
                     continue
+
+            print("cycle!")
 
     @staticmethod
     def message_routing():
