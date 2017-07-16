@@ -112,7 +112,7 @@ class TunnelServer(object):
             client_conn.send(str.encode(ping_message.pack_to_json_string()))
 
         except Exception as e:
-            print("Socket probably dead eh? " + str(e))
+            print("Client communication error " + str(e))
             return False
         return True
 
@@ -212,14 +212,10 @@ class TunnelServer(object):
                 # Loop indefinitely
                 continue
                 # lock.release()
-            print("Jumped to here")
             self.all_connections.append(conn)
             # self.all_addresses.append(address)
             self.all_clients[username] = conn
-
-            print("All clients " + str(self.all_clients))
             # Put the newly connected client to the list
-
             client_connected_message = Message(username, "server", "event", "Connected")
 
             client_received.put(client_connected_message)

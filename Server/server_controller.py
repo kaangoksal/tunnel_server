@@ -21,11 +21,16 @@ class ServerController(object):
     def check_for_messages(self):
         # Implement select plz
         while True:
+            print("Check for messages is wurking")
             for username in list(self.server.all_clients):
                 # TODO there is a blocking call here, implement select()
+
+                print("username passed reading connections")
+
                 username_conn = self.server.all_clients[username]
 
                 received_message = self.server.read_message_from_connection(username_conn)
+                print("Received message " + received_message)
 
                 if received_message is not None and received_message != b'':
 
@@ -60,71 +65,73 @@ class ServerController(object):
 
     def ui(self):
         while True:
-            print("Please input command [ssh, read_messages]")
-            user_input = input()
-            if user_input == "read_messages":
-                print("Listing messages")
-                print(UI_queue.not_empty)
-                while UI_queue.not_empty:
-                    # UI_queue.get(block=True) #Blocks till a message appears!
-                    new_block = UI_queue.get()
-
-                    # username, type_of_event, message = new_block
-
-                    if new_block.type is "event":
-                        ColorPrint.print_message("OkBLUE", "event from " + str(new_block.sender), new_block.payload)
-                    elif new_block.type is "message":
-                        ColorPrint.print_message("NORMAL", "message from " + str(new_block.sender), new_block.payload)
-
-            elif user_input == "ssh":
-
-                print("[SSH MENU] Select Option (put in the number) ")
-                print("1)Start SSH")
-                print("2)Close SSH Connection")
-                print("3)Main Menu")
+            try:
+                print("Please input command [ssh, read_messages]")
                 user_input = input()
-                if user_input == "1":
-                    print("[SSH MENU 2] Select Client")
-                    available_clients = self.server.list_available_clients()
-                    i = 0
-                    for client in available_clients:
-                        print(str(i) + " " + client)
-                    print(str(len(available_clients)) + " Cancel")
+                if user_input == "read_messages":
+                    print("Listing messages")
+                    print(UI_queue.not_empty)
+                    while UI_queue.not_empty:
+                        # UI_queue.get(block=True) #Blocks till a message appears!
+                        new_block = UI_queue.get()
+
+                        # username, type_of_event, message = new_block
+
+                        if new_block.type is "event":
+                            ColorPrint.print_message("OkBLUE", "event from " + str(new_block.sender), new_block.payload)
+                        elif new_block.type is "message":
+                            ColorPrint.print_message("NORMAL", "message from " + str(new_block.sender), new_block.payload)
+
+                elif user_input == "ssh":
+
+                    print("[SSH MENU] Select Option (put in the number) ")
+                    print("1)Start SSH")
+                    print("2)Close SSH Connection")
+                    print("3)Main Menu")
                     user_input = input()
+                    if user_input == "1":
+                        print("[SSH MENU 2] Select Client")
+                        available_clients = self.server.list_available_clients()
+                        i = 0
+                        for client in available_clients:
+                            print(str(i) + " " + client)
+                        print(str(len(available_clients)) + " Cancel")
+                        user_input = input()
 
-                    if int(user_input) < len(available_clients):
-                        new_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Start")
+                        if int(user_input) < len(available_clients):
+                            new_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Start")
 
-                        outbox.put(new_message)
-                    else:
-                        pass
+                            outbox.put(new_message)
+                        else:
+                            pass
 
-                elif user_input == "2":
-                    print("[SSH MENU] Select Client to Close Connection")
-                    available_clients = self.server.list_available_clients()
-                    i = 0
-                    for client in available_clients:
-                        print(str(i) + " " + client)
-                    i = 0
-                    for client in available_clients:
-                        print(str(i) + " " + client)
-                    print(str(len(available_clients)) + " Cancel")
+                    elif user_input == "2":
+                        print("[SSH MENU] Select Client to Close Connection")
+                        available_clients = self.server.list_available_clients()
+                        i = 0
+                        for client in available_clients:
+                            print(str(i) + " " + client)
+                        # i = 0
+                        # for client in available_clients:
+                        #     print(str(i) + " " + client)
+                        print(str(len(available_clients)) + " Cancel")
 
-                    user_input = input()
-                    if int(user_input) < len(available_clients):
-                        close_ssh_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Stop")
-                        outbox.put(close_ssh_message)
-                    else:
-                        pass
+                        user_input = input()
+                        if int(user_input) < len(available_clients):
+                            close_ssh_message = Message("server", list(available_clients)[int(user_input)], "action", "SSH-Stop")
+                            outbox.put(close_ssh_message)
+                        else:
+                            pass
 
-                elif user_input == "3":
-                    continue
-
-            print("cycle!")
+                    elif user_input == "3":
+                        continue
+            except EOFError as e:
+                print(str(e))
 
     @staticmethod
     def message_routing():
         while True:
+
             if client_received.not_empty:
                 new_block = client_received.get()
 
@@ -137,7 +144,7 @@ class ServerController(object):
                 elif new_block.type is "event":
                     UI_queue.put(new_block)
                 elif new_block.type is "result":
-                    print(new_block.payload)
+                    print("Message not routable " + str(new_block.payload))
 
     def initialize_threads(self):
         server = TunnelServer(9000)
