@@ -212,6 +212,7 @@ class TunnelServer(object):
                 # Loop indefinitely
                 continue
                 # lock.release()
+            conn.setblocking(0)
             self.all_connections.append(conn)
             # self.all_addresses.append(address)
             self.all_clients[username] = conn

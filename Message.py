@@ -12,14 +12,14 @@ import json
 
 class Message(object):
 
-    def __init__(self, sender, to, type, payload):
+    def __init__(self, sender, to, message_type, payload):
         self.sender = sender
         self.to = to
-        self.type = type
+        self.type = message_type
         self.payload = payload
 
     def __str__(self):
-        return "Message Block with Sender: " + str(self.sender) + " To: " + str(self.to) + " type: " + str(type) + " payload: " + str(self.payload)
+        return "Message Block with Sender: " + str(self.sender) + " To: " + str(self.to) + " type: " + str(self.type) + " payload: " + str(self.payload)
 
     def pack_to_json_string(self):
         return_dict = {

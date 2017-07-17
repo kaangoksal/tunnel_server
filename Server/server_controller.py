@@ -5,6 +5,7 @@ from Server.server import client_received
 from Server.server import outbox
 from Server.server import TunnelServer
 from color_print import ColorPrint
+import select
 import time
 import threading
 
@@ -21,19 +22,19 @@ class ServerController(object):
     def check_for_messages(self):
         # Implement select plz
         while True:
-            print("Check for messages is wurking")
-            for username in list(self.server.all_clients):
-                # TODO there is a blocking call here, implement select()
+            # print("Check for messages is wurking")
 
-                print("username passed reading connections")
-
-                username_conn = self.server.all_clients[username]
-
-                received_message = self.server.read_message_from_connection(username_conn)
-                print("Received message " + received_message)
+            #select.select(rlist, wlist, xlist[, timeout])
+            timeout = 1
+            readable, writable, exceptional = \
+                select.select(self.server.all_connections, self.server.all_connections, self.server.all_connections, timeout)
+            # print("Readable " + str(readable))
+            # print("All connections " + str(self.server.all_connections))
+            for connection in readable:
+                received_message = self.server.read_message_from_connection(connection)
+                # print("Received " + str(received_message))
 
                 if received_message is not None and received_message != b'':
-
                     json_string = received_message.decode("utf-8")
 
                     try:
@@ -43,11 +44,39 @@ class ServerController(object):
                     except Exception as e:
                         print("Received unexpected message " + str(e) + " " + received_message)
 
-                elif not self.server.is_client_alive(username):
-                    self.server.remove_client(username)
-                    client_received.put((username, "event", "disconnected"))
+                # elif not self.server.is_client_alive(username):
+                #          self.server.remove_client(username)
+                #          client_received.put((username, "event", "disconnected"))
 
             time.sleep(1)
+
+
+            # for username in list(self.server.all_clients):
+            #     # TODO there is a blocking call here, implement select()
+            #
+            #     print("username passed reading connections")
+            #
+            #     username_conn = self.server.all_clients[username]
+            #
+            #     received_message = self.server.read_message_from_connection(username_conn)
+            #     print("Received message " + received_message)
+            #
+            #     if received_message is not None and received_message != b'':
+            #
+            #         json_string = received_message.decode("utf-8")
+            #
+            #         try:
+            #             new_message = Message.json_string_to_message(json_string)
+            #             client_received.put(new_message)
+            #
+            #         except Exception as e:
+            #             print("Received unexpected message " + str(e) + " " + received_message)
+            #
+            #     elif not self.server.is_client_alive(username):
+            #         self.server.remove_client(username)
+            #         client_received.put((username, "event", "disconnected"))
+            #
+            # time.sleep(1)
 
     def send_messages(self):
         while True:
@@ -139,11 +168,13 @@ class ServerController(object):
 
                 print("DEBUG message routing " + str(new_block))
 
-                if new_block.type is "message":
+                if new_block.type == "message":
                     UI_queue.put(new_block)
-                elif new_block.type is "event":
+                elif new_block.type == "event":
                     UI_queue.put(new_block)
-                elif new_block.type is "result":
+                elif new_block.type == "result":
+                    print(new_block.payload)
+                else:
                     print("Message not routable " + str(new_block.payload))
 
     def initialize_threads(self):
