@@ -117,8 +117,24 @@ class TunnelServer(object):
         return True
 
     def list_available_clients(self):
+        """
+        Lists all available clients
+        :return: list of connected clients
+        """
         connected_clients = self.all_clients.keys()
         return connected_clients
+
+    def get_username_from_connection(self, conn):
+        """
+        This method returns username from given connection
+        :param conn: connection that belongs to some username
+        :return: username that the connection belongs to
+        """
+        dict_copy = self.all_clients
+        for username in dict_copy.keys():
+            if dict_copy[username] == conn:
+                return username
+
 
     def read_message_from_connection(self, conn):
         """ Read message length and unpack it into an integer
