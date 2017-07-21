@@ -124,12 +124,14 @@ class ServerController(object):
                         i = 0
                         for client in available_clients:
                             print(str(i) + " " + client)
+                            i = i + 1
                         print(str(len(available_clients)) + " Cancel")
 
                         # Never trust the user
                         try:
                             user_input = input()
                             if int(user_input) < len(available_clients):
+
                                 new_message = Message("server",
                                                       list(available_clients)[int(user_input)],
                                                       "action", "SSH-Start")
@@ -146,6 +148,7 @@ class ServerController(object):
                         i = 0
                         for client in available_clients:
                             print(str(i) + " " + client)
+                            i = i + 1
 
                         print(str(len(available_clients)) + " Cancel")
                         try:
@@ -209,5 +212,7 @@ class ServerController(object):
         user_interface_thread = threading.Thread(target=self.ui)
         user_interface_thread.setName("UI Thread")
         user_interface_thread.start()
+
+
 
         return

@@ -5,20 +5,21 @@ https://github.com/buckyroberts/Turtle/blob/master/Multiple_Clients/server.py
 Author: Kaan Goksal
 8 JULY 2017
 
-one thread will read and write to the clients
-one thread will accept connections
-one thread will be user interface
 
 """
 
 # TODO add SSL
 # TODO Implement Logger
+# TODO authentication for accept connections, Can use RSA
 
 import socket
 import sys
 import time
 import signal
 import threading
+
+from threading import Timer
+
 from queue import Queue
 import json
 import struct
@@ -55,15 +56,25 @@ UI_queue = Queue()
 
 
 class TunnelServer(object):
-    def __init__(self, port, host=''):
+    def __init__(self, port, host='', ping_timer=25):
+        """
+        The init method of the class
+        :param port: the server is going to bind
+        :param host: the host that the server is going to bind.
+        """
         # TODO get these values from config
         self.host = host
         self.port = port
         self.socket = None
         self.all_connections = []
         self.all_clients = {}
+        self.ping_timer_time = ping_timer
 
     def register_signal_handler(self):
+        """
+        This method registers signal handlers which will do certain stuff before the server terminates
+        :return:
+        """
         signal.signal(signal.SIGINT, self.quit_gracefully)
         signal.signal(signal.SIGTERM, self.quit_gracefully)
         return
@@ -84,6 +95,10 @@ class TunnelServer(object):
         sys.exit(0)
 
     def socket_create(self):
+        """
+        Creates a socket
+        :return:
+        """
         try:
             self.socket = socket.socket()
         except socket.error as msg:
@@ -105,6 +120,11 @@ class TunnelServer(object):
         return
 
     def is_client_alive(self, client):
+        """
+        Checks whether a client is still active on the otherside
+        :param client: the username of the client
+        :return: true if the client is alive, false if the client is not alive
+        """
         client_conn = self.all_clients[client]
         try:
 
@@ -194,9 +214,29 @@ class TunnelServer(object):
         # client_conn.shutdown(2)
         client_conn.close()
 
-    def accept_connections(self):
-        # TODO authentication, Can use RSA
+    def ping(self, username):
+        """
+        This method constantly pings the users to check whether their connections
+        are still alive. It triggers timers
+        :param username: the username of the client
+        :return: nothing
+        """
+        message = Message("server", username, "utility", "PING")
+        try:
+            self.send_message_to_client(username, message.pack_to_json_string())
+            # ping timer relaunches itself if the message was successful
+            t = Timer(self.ping_timer_time, self.ping, [username])
+            t.start()
+        except Exception as e:
+            print("Exception Occured in PING " + str(e))
+            if not self.is_client_alive(username):
+                self.remove_client(username)
 
+                client_disconnected_message = Message("server", "server", "event",
+                                                      "Client Disconnected " + str(username))
+                client_received.put(client_disconnected_message)
+
+    def accept_connections(self):
         """ Accept connections from multiple clients and save to list """
         for c in self.all_connections:
             c.close()
@@ -207,8 +247,8 @@ class TunnelServer(object):
             try:
                 # lock.acquire()
                 conn, address = self.socket.accept()
+                # If set blocking is 0 server does not wait for message and this try block fails.
                 conn.setblocking(1)
-                # TODO check whether it blocks if server does not send anything after connection
 
                 # This is a special message since it is authentication
                 json_string = self.read_message_from_connection(conn).decode("utf-8")
@@ -222,17 +262,21 @@ class TunnelServer(object):
                 hostname = json_package["hostname"]
                 host_system_username = json_package["host_system_username"]
 
-                # TODO add authentication if problem just kick the client and report
+                # Ping timer checks whether the client is alive or not by pinging it
+                t = Timer(self.ping_timer_time, self.ping, [username])
+                t.start()
+
             except Exception as e:
                 ColorPrint.print_message("ERROR", "accept_connections", 'Error accepting connections: %s' % str(e))
                 # Loop indefinitely
                 continue
                 # lock.release()
+            # we need setblocking 0 so that select works in server_controller.
             conn.setblocking(0)
             self.all_connections.append(conn)
-            # self.all_addresses.append(address)
-            self.all_clients[username] = conn
             # Put the newly connected client to the list
+            self.all_clients[username] = conn
+            # Push a message to the queue to notify that a new client is connected
             client_connected_message = Message(username, "server", "event", "Connected")
 
             client_received.put(client_connected_message)
