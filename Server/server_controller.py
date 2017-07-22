@@ -8,6 +8,7 @@ from color_print import ColorPrint
 import select
 import time
 import threading
+import json
 
 
 class ServerController(object):
@@ -131,10 +132,13 @@ class ServerController(object):
                         try:
                             user_input = input()
                             if int(user_input) < len(available_clients):
+                                parameters = {"local_port": 22, "remote_port": 7005, "name": "shell connection"}
+
+                                payload = {"action_type": "SSH", "parameters": json.dumps(parameters, sort_keys=True, indent=4, separators=(',', ': ')), "command": "SSH-Start"}
 
                                 new_message = Message("server",
                                                       list(available_clients)[int(user_input)],
-                                                      "action", "SSH-Start")
+                                                      "action", json.dumps(payload, sort_keys=True, indent=4, separators=(',', ': ')))
 
                                 outbox.put(new_message)
                             else:
