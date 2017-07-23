@@ -55,7 +55,7 @@ outbox = Queue()
 UI_queue = Queue()
 
 
-class TunnelServer(object):
+class TunnelServerCommunicator(object):
     def __init__(self, port, host='', ping_timer=25):
         """
         The init method of the class

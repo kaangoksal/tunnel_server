@@ -1,9 +1,10 @@
 
 from Message import Message
-from Server.server import UI_queue
-from Server.server import client_received
-from Server.server import outbox
-from Server.server import TunnelServer
+from server.server_communicator import UI_queue
+from server.server_communicator import client_received
+from server.server_communicator import outbox
+
+
 from color_print import ColorPrint
 import select
 import time
@@ -80,7 +81,6 @@ class ServerController(object):
 
                     client_received.put(client_disconnected_message)
 
-
     def accept_connections(self):
         self.server.socket_create()
         self.server.socket_bind()
@@ -125,20 +125,25 @@ class ServerController(object):
                         i = 0
                         for client in available_clients:
                             print(str(i) + " " + client)
-                            i = i + 1
+                            i += 1
                         print(str(len(available_clients)) + " Cancel")
 
                         # Never trust the user
                         try:
                             user_input = input()
                             if int(user_input) < len(available_clients):
-                                parameters = {"local_port": 22, "remote_port": 7005, "name": "shell connection"}
 
-                                payload = {"action_type": "SSH", "parameters": json.dumps(parameters, sort_keys=True, indent=4, separators=(',', ': ')), "command": "SSH-Start"}
+                                parameters = {"local_port": 22,
+                                              "remote_port": 7005,
+                                              "name": "shell connection"}
+
+                                payload = {"action_type": "SSH",
+                                           "parameters": json.dumps(parameters),
+                                           "command": "SSH-Start"}
 
                                 new_message = Message("server",
                                                       list(available_clients)[int(user_input)],
-                                                      "action", json.dumps(payload, sort_keys=True, indent=4, separators=(',', ': ')))
+                                                      "action", json.dumps(payload))
 
                                 outbox.put(new_message)
                             else:
@@ -152,16 +157,22 @@ class ServerController(object):
                         i = 0
                         for client in available_clients:
                             print(str(i) + " " + client)
-                            i = i + 1
+                            i += 1
 
                         print(str(len(available_clients)) + " Cancel")
                         try:
                             user_input = input()
                             if int(user_input) < len(available_clients):
+
+                                payload = {"action_type": "SSH",
+                                           "parameters": "",
+                                           "command": "SSH-Stop"}
+
                                 close_ssh_message = Message("server",
                                                             list(available_clients)[int(user_input)],
                                                             "action",
-                                                            "SSH-Stop")
+                                                            json.dumps(payload))
+
                                 outbox.put(close_ssh_message)
                             else:
                                 pass
@@ -216,7 +227,3 @@ class ServerController(object):
         user_interface_thread = threading.Thread(target=self.ui)
         user_interface_thread.setName("UI Thread")
         user_interface_thread.start()
-
-
-
-        return
