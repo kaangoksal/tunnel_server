@@ -22,13 +22,14 @@ class ColorPrint:
     def print_message(Type, Tag, Message):
         if Type == "Error":
             print(bcolors.FAIL + "[ERROR]" + " " + Tag + ": " + bcolors.ENDC + Message)
-        elif Type == "Ok":
-            print(bcolors.OKGREEN + "[OK]" + " " + Tag + ": " + bcolors.ENDC + Message)
-        elif Type == "OkBLUE":
-            print(bcolors.OKBLUE + "[OK]" + " " + Tag + ": " + bcolors.ENDC + Message)
+        elif Type == "Result":
+            print(bcolors.OKGREEN + "[Result]" + " " + Tag + ": " + bcolors.ENDC + Message)
+        elif Type == "Event":
+            print(bcolors.OKBLUE + "[Event]" + " " + Tag + ": " + bcolors.ENDC + Message)
         elif Type == "Warning":
             print(bcolors.WARNING + "[WARNING]" + " " + Tag + ": " + bcolors.ENDC + Message)
         elif Type == "FAIL":
             print(bcolors.FAIL + "[FAIL]" + " " + Tag + ": " + bcolors.ENDC + Message)
-        elif Type == "NORMAL":
-            print(Tag + ": " + Message)
+        elif Type == "Message":
+            print("[Message]" + Tag + ": " + Message)
+

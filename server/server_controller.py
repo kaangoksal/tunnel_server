@@ -105,10 +105,9 @@ class ServerController(object):
                         # username, type_of_event, message = new_block
 
                         if new_block.type is "event":
-                            ColorPrint.print_message("OkBLUE", "event from " + str(new_block.sender), new_block.payload)
+                            ColorPrint.print_message("Event", str(new_block.sender), new_block.payload)
                         elif new_block.type is "message":
-                            ColorPrint.print_message("NORMAL", "message from " +
-                                                     str(new_block.sender), new_block.payload)
+                            ColorPrint.print_message("Message", str(new_block.sender), new_block.payload)
 
                 elif user_input == "ssh":
 
@@ -165,7 +164,7 @@ class ServerController(object):
                             if int(user_input) < len(available_clients):
 
                                 parameters = {"name": "shell connection"}
-                                
+
                                 payload = {"action_type": "SSH",
                                            "parameters": json.dumps(parameters),
                                            "command": "SSH-Stop"}
@@ -179,12 +178,12 @@ class ServerController(object):
                             else:
                                 pass
                         except Exception as e:
-                            print("Invalid input " + str(e))
+                            ColorPrint.print_message("Error", "UI", "Invalid input " + str(e))
 
                     elif user_input == "3":
                         continue
             except EOFError as e:
-                print(str(e))
+                ColorPrint.print_message("Error", "UI", "Exception occured "+ str(e))
 
     @staticmethod
     def message_routing():
@@ -195,16 +194,18 @@ class ServerController(object):
 
                 # username, type_of_event, message = new_block
 
-                print("DEBUG mr " + str(new_block))
+                print("DEBUG " + str(new_block))
 
                 if new_block.type == "message":
                     UI_queue.put(new_block)
                 elif new_block.type == "event":
                     UI_queue.put(new_block)
                 elif new_block.type == "result":
-                    print(new_block.payload)
+                    ColorPrint.print_message("Result", str(new_block.sender), new_block.payload)
+                    #print(new_block.sender + ": " + new_block.payload)
                 else:
-                    print("Message not routable " + str(new_block.payload))
+                    ColorPrint.print_message("Warning", str(new_block.sender), str(new_block.payload))
+                    #print("Message not routable " + str(new_block.payload))
 
     def initialize_threads(self):
 
