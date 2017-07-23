@@ -164,8 +164,10 @@ class ServerController(object):
                             user_input = input()
                             if int(user_input) < len(available_clients):
 
+                                parameters = {"name": "shell connection"}
+                                
                                 payload = {"action_type": "SSH",
-                                           "parameters": "",
+                                           "parameters": json.dumps(parameters),
                                            "command": "SSH-Stop"}
 
                                 close_ssh_message = Message("server",
