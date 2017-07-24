@@ -50,11 +50,12 @@ class ServerController(object):
                     #          self.server.remove_client(username)
                     #          client_received.put((username, "event", "disconnected"))
                 except Exception as e:
-                    print("Exception occurred in check_for_messages " + str(e))
+                    print("Exception occurred in check_for_messages " + str(e) + " All Clients dict " + str(self.server.all_clients))
 
                     username = self.server.get_username_from_connection(connection)
 
                     if not self.server.is_client_alive(username):
+
                         self.server.remove_client(username)
 
                         client_disconnected_message = Message("server", "server", "event", "Client Disconnected " + str(username))
