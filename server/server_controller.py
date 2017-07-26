@@ -53,7 +53,8 @@ class ServerController(object):
                     print("Exception occurred in check_for_messages " + str(e) + " All Clients dict " + str(self.server.all_clients))
 
                     username = self.server.get_username_from_connection(connection)
-
+                    print(username)
+                    
                     if not self.server.is_client_alive(username):
 
                         self.server.remove_client(username)
