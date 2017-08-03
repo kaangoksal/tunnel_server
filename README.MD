@@ -18,6 +18,13 @@ and the operator needs to know the username and the password for the clients (us
 Version History
 
 
+
+V 0.0.12
+
+- added safe-guards for empty byte array storms.
+- optimized for cpu spikes, select blocks until there is a message
+
+
 V 0.0.1
 
 - Added new commands for ssh stop

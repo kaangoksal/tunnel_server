@@ -3,12 +3,12 @@
 # TODO implement config parser
 
 
-from server.server_controller import ServerController
-from server.server_communicator import TunnelServerCommunicator
+from server.server_controller import SocketServerController
+from server.server_communicator import SocketCommunicator
 
 
 if __name__ == "__main__":
-    server = TunnelServerCommunicator(9000)
-    server_controller = ServerController(server)
+    server = SocketCommunicator(9000)
+    server_controller = SocketServerController(server)
     server_controller.start()
 

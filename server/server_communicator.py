@@ -16,22 +16,13 @@ import socket
 import sys
 import time
 import signal
-import threading
-
-from threading import Timer
-
-from queue import Queue
-import json
 import struct
-from Message import Message
-from color_print import ColorPrint
-
 
 
 """
 
 Struct is used to add packet length headers to the tcp packets that we are sending.
-It helps us to identify packets seperately by reading a single packet without grabbing data from other packet
+It helps us to identify packets separately by reading a single packet without grabbing data from other packet
 for example:
 
 If you send two consecutive packets,
@@ -46,29 +37,32 @@ therefore your json encode would raise WTF error.
 
 """
 
+#
+# lock = threading.Lock()
+#
+#
+# client_received = Queue()
+# outbox = Queue()
+# UI_queue = Queue()
 
-lock = threading.Lock()
 
+class SocketCommunicator(object):
 
-client_received = Queue()
-outbox = Queue()
-UI_queue = Queue()
-
-
-class TunnelServerCommunicator(object):
-    def __init__(self, port, host='', ping_timer=25):
+    def __init__(self, port, host=''):
         """
         The init method of the class
         :param port: the server is going to bind
         :param host: the host that the server is going to bind.
         """
-        # TODO get these values from config
         self.host = host
         self.port = port
         self.socket = None
+
+        # Dictionary of socket connections
         self.all_connections = []
+
+        # Dictionary of client_username:client object
         self.all_clients = {}
-        self.ping_timer_time = ping_timer
 
     def register_signal_handler(self):
         """
@@ -103,7 +97,6 @@ class TunnelServerCommunicator(object):
             self.socket = socket.socket()
         except socket.error as msg:
             print("Socket creation error: " + str(msg))
-            # TODO: Added exit
             sys.exit(1)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return
@@ -125,36 +118,40 @@ class TunnelServerCommunicator(object):
         :param client: the username of the client
         :return: true if the client is alive, false if the client is not alive
         """
-        client_conn = self.all_clients[client]
+        #
+        # client_conn = self.get_client_from_username(client)
+
         try:
 
-            ping_message = Message("server", client, "utility", "ping")
-            client_conn.send(str.encode(ping_message.pack_to_json_string()))
+            # ping_message = Message("server", client, "utility", "ping")
+            ping_message = "ping"
+            client.socket_connection.send(str.encode(ping_message))
 
         except Exception as e:
-            print("Client communication error " + str(e))
+            print("is_client_alive returned false " + str(e))
             return False
         return True
 
-    def list_available_clients(self):
+    def list_available_client_usernames(self):
         """
-        Lists all available clients
-        :return: list of connected clients
+        Lists the usernames of the available clients
+        :return: list of connected clients usernames as a string list
         """
         connected_clients = self.all_clients.keys()
         return connected_clients
 
     def get_username_from_connection(self, conn):
+        #TODO check whether this works
         """
         This method returns username from given connection
         :param conn: connection that belongs to some username
         :return: username that the connection belongs to
         """
         dict_copy = self.all_clients
-        for username in dict_copy.keys():
-            if dict_copy[username] == conn:
-                return username
 
+        for username in dict_copy.keys():
+            if dict_copy[username].socket_connection == conn:
+                return username
 
     def read_message_from_connection(self, conn):
         """ Read message length and unpack it into an integer
@@ -195,88 +192,55 @@ class TunnelServerCommunicator(object):
          :param client: the username of the client
          :param output_str: string message that will go to the server
         """
-        client_socket = self.all_clients[client]
+        if isinstance(client, str):
+            self.send_message_to_client_username(client, output_str)
+        else:
+
+            client_socket = client.socket_connection
+
+            byte_array_message = str.encode(output_str)
+            # We are packing the length of the packet to
+            #  unsigned big endian struct to make sure that it is always constant length
+            client_socket.send(struct.pack('>I', len(byte_array_message)) + byte_array_message)
+
+    def send_message_to_client_username(self, username, output_str):
+        # TODO throw client not found exception
+        # TODO throw socket closed exception
+        """ Sends message to the client
+         :param client: the username of the client
+         :param output_str: string message that will go to the server
+        """
+        client = self.all_clients[username]
+
+        client_socket = client.socket_connection
 
         byte_array_message = str.encode(output_str)
         # We are packing the length of the packet to
         #  unsigned big endian struct to make sure that it is always constant length
         client_socket.send(struct.pack('>I', len(byte_array_message)) + byte_array_message)
 
+    def get_client_from_username(self, username):
+
+        client = self.all_clients.get(username, None)
+
+        if client is not None:
+            return client
+        else:
+            return None
+
     def remove_client(self, client):
         """ closes down the client connection and removes it from the client list
             :param client: the client username that we are removing
         """
-        client_conn = self.all_clients[client]
-
-        self.all_clients.pop(client)
-        self.all_connections.remove(client_conn)
-
-        # client_conn.shutdown(2)
-        client_conn.close()
-
-    def ping(self, username):
-        """
-        This method constantly pings the users to check whether their connections
-        are still alive. It triggers timers
-        :param username: the username of the client
-        :return: nothing
-        """
-        message = Message("server", username, "utility", "PING")
+        client_conn = client.socket_connection
         try:
-            self.send_message_to_client(username, message.pack_to_json_string())
-            # ping timer relaunches itself if the message was successful
-            t = Timer(self.ping_timer_time, self.ping, [username])
-            t.start()
+            self.all_clients.pop(client.username)
+
+            self.all_connections.remove(client_conn)
+
+            # client_conn.shutdown(2)
+            client_conn.close()
         except Exception as e:
-            print("Exception Occured in PING " + str(e))
-            if not self.is_client_alive(username):
-                self.remove_client(username)
+            # Probably client is already removed
+            print("remove_client error " + str(e))
 
-                client_disconnected_message = Message("server", "server", "event",
-                                                      "Client Disconnected " + str(username))
-                client_received.put(client_disconnected_message)
-
-    def accept_connections(self):
-        """ Accept connections from multiple clients and save to list """
-        for c in self.all_connections:
-            c.close()
-        self.all_connections = []
-        # self.all_addresses = []
-        while 1:
-
-            try:
-                # lock.acquire()
-                conn, address = self.socket.accept()
-                # If set blocking is 0 server does not wait for message and this try block fails.
-                conn.setblocking(1)
-
-                # This is a special message since it is authentication
-                json_string = self.read_message_from_connection(conn).decode("utf-8")
-
-                print("Accepting connection " + str(json_string))
-
-                # new_message = Message.json_string_to_message(json_string)
-                json_package = json.loads(json_string)
-                username = json_package["username"]
-                password = json_package["password"]
-                hostname = json_package["hostname"]
-                host_system_username = json_package["host_system_username"]
-
-                # Ping timer checks whether the client is alive or not by pinging it
-                t = Timer(self.ping_timer_time, self.ping, [username])
-                t.start()
-
-            except Exception as e:
-                ColorPrint.print_message("ERROR", "accept_connections", 'Error accepting connections: %s' % str(e))
-                # Loop indefinitely
-                continue
-                # lock.release()
-            # we need setblocking 0 so that select works in server_controller.
-            conn.setblocking(0)
-            self.all_connections.append(conn)
-            # Put the newly connected client to the list
-            self.all_clients[username] = conn
-            # Push a message to the queue to notify that a new client is connected
-            client_connected_message = Message(username, "server", "event", "Connected")
-
-            client_received.put(client_connected_message)
