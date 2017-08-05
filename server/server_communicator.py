@@ -104,26 +104,6 @@ class SocketCommunicator(object):
             self.socket_bind()
         return
 
-    def is_client_alive(self, client):
-        """
-        Checks whether a client is still active on the otherside
-        :param client: the username of the client
-        :return: true if the client is alive, false if the client is not alive
-        """
-        #
-        # client_conn = self.get_client_from_username(client)
-
-        try:
-
-            # ping_message = Message("server", client, "utility", "ping")
-            ping_message = "ping"
-            client.socket_connection.send(str.encode(ping_message))
-
-        except Exception as e:
-            print("is_client_alive returned false " + str(e))
-            return False
-        return True
-
     def list_available_client_usernames(self):
         """
         Lists the usernames of the available clients

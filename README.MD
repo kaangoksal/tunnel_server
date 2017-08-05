@@ -17,6 +17,10 @@ and the operator needs to know the username and the password for the clients (us
 
 Version History
 
+V 0.0.13
+
+- socket connection will be terminated if the client does not reply the ping requests
+- 
 
 
 V 0.0.12

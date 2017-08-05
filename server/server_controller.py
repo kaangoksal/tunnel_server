@@ -36,78 +36,74 @@ class SocketServerController(object):
         """
 
         seconds = int(round(time.time()))
-        if not (seconds - client.last_ping > self.ping_deadline):
+        if seconds - client.last_ping < self.ping_deadline:
 
             payload = {"utility_type": "PING"}
 
-            message = Message("server",
-                                  client.username,
-                                  "utility", json.dumps(payload))
+            message = Message("server", client.username, "utility", json.dumps(payload))
 
             # self.server.send_message_to_client(client.username, message.pack_to_json_string())
             self.outbox_queue.put(message)
             # ping timer relaunches itself if the message was successful
             t = Timer(self.ping_timer_time, self.ping, [client])
             t.start()
-        elif not self.server.is_client_alive(client):
+        #elif not self.server.is_client_alive(client):
+        else:
+            ColorPrint.print_message("Warning", "Ping", "kicking the client " + str(client.username))
             self.server.remove_client(client)
             client_disconnected_message = Message("server", "server", "event", "Client Disconnected " + str(client))
             self.inbox_queue.put(client_disconnected_message)
 
+    def is_client_alive(self, client):
+        """
+        Checks whether a client is still active on the otherside
+        :param client: the username of the client
+        :return: true if the client is alive, false if the client is not alive
+        """
+        #
+        # client_conn = self.get_client_from_username(client)
+
+        seconds = int(round(time.time()))
+        if seconds - client.last_ping < self.ping_deadline:
+            return False
+        else:
+            return True
+
     def accept_connections(self):
-        # TODO incorporate different types of clients!
-        self.server.socket_create()
-        self.server.socket_bind()
+        print("bout to accept")
+        conn, address = self.server.socket.accept()
+        # If set blocking is 0 server does not wait for message and this try block fails.
+        conn.setblocking(1)
 
-        """ Accept connections from multiple clients and save to list """
-        for c in self.server.all_connections:
-            c.close()
-        self.server.all_connections = []
+        # This is a special message since it is authentication
+        print("reading from connectione")
+        json_string = self.server.read_message_from_connection(conn).decode("utf-8")
 
-        while 1:
+        print("Accepting connection " + str(json_string))
 
-            try:
+        # new_message = Message.json_string_to_message(json_string)
+        json_package = json.loads(json_string)
+        username = json_package["username"]
+        password = json_package["password"]
+        # hostname = json_package["hostname"]
+        # host_system_username = json_package["host_system_username"]
 
-                conn, address = self.server.socket.accept()
-                # If set blocking is 0 server does not wait for message and this try block fails.
-                conn.setblocking(1)
+        new_client = socket_client(username, password, conn)
 
-                # This is a special message since it is authentication
-                json_string = self.server.read_message_from_connection(conn).decode("utf-8")
+        # Ping timer checks whether the client is alive or not by pinging it
+        t = Timer(self.ping_timer_time, self.ping, [new_client])
+        t.start()
 
-                print("Accepting connection " + str(json_string))
+        # we need set blocking 0 so that select works in server_controller. With this sockets will not block....
+        conn.setblocking(1)
+        self.server.all_connections.append(conn)
+        # Put the newly connected client to the list
+        self.server.all_clients[username] = new_client
+        # Push a message to the queue to notify that a new client is connected
+        client_connected_message = Message(username, "server", "event", "Connected")
 
-                # new_message = Message.json_string_to_message(json_string)
-                json_package = json.loads(json_string)
-                username = json_package["username"]
-                password = json_package["password"]
-                # hostname = json_package["hostname"]
-                # host_system_username = json_package["host_system_username"]
+        self.inbox_queue.put(client_connected_message)
 
-                if self.server.all_clients.get(username, None) is not None:
-                    # This means that the client reconnected before we noticed it
-                    self.server.remove_client(self.server.all_clients[username])
-
-                new_client = socket_client(username, password, conn)
-
-                # Ping timer checks whether the client is alive or not by pinging it
-                t = Timer(self.ping_timer_time, self.ping, [new_client])
-                t.start()
-
-            except Exception as e:
-                ColorPrint.print_message("ERROR", "accept_connections", 'Error accepting connections: %s' % str(e))
-                # Loop indefinitely
-                continue
-
-            # we need set blocking 0 so that select works in server_controller. With this sockets will not block....
-            conn.setblocking(1)
-            self.server.all_connections.append(conn)
-            # Put the newly connected client to the list
-            self.server.all_clients[username] = new_client
-            # Push a message to the queue to notify that a new client is connected
-            client_connected_message = Message(username, "server", "event", "Connected")
-
-            self.inbox_queue.put(client_connected_message)
 
     def send_messages(self):
         while True:
@@ -123,7 +119,7 @@ class SocketServerController(object):
 
                 client = self.server.get_client_from_username(username)
 
-                if client is not None and not self.server.is_client_alive(username):
+                if client is not None and not self.is_client_alive(client):
                     self.server.remove_client(client)
 
                     client_disconnected_message = Message("server", "server",
@@ -143,50 +139,19 @@ class SocketServerController(object):
                 print("reading conn " + str(connection))
                 if connection is self.server.socket:
                     try:
-                        print("bout to accept")
-                        conn, address = self.server.socket.accept()
-                        # If set blocking is 0 server does not wait for message and this try block fails.
-                        conn.setblocking(1)
-
-                        # This is a special message since it is authentication
-                        print("reading from connectione")
-                        json_string = self.server.read_message_from_connection(conn).decode("utf-8")
-
-                        print("Accepting connection " + str(json_string))
-
-                        # new_message = Message.json_string_to_message(json_string)
-                        json_package = json.loads(json_string)
-                        username = json_package["username"]
-                        password = json_package["password"]
-                        # hostname = json_package["hostname"]
-                        # host_system_username = json_package["host_system_username"]
-
-                        new_client = socket_client(username, password, conn)
-
-                        # Ping timer checks whether the client is alive or not by pinging it
-                        t = Timer(self.ping_timer_time, self.ping, [new_client])
-                        t.start()
-
+                        self.accept_connections()
                     except Exception as e:
-                        ColorPrint.print_message("ERROR", "accept_connections",
+                        ColorPrint.print_message("ERROR", "accept_connection, check_for_messages",
                                                  'Error accepting connections: %s' % str(e))
-                        # Loop indefinitely
+                        # continue the loop
                         continue
-
-                    # we need set blocking 0 so that select works in server_controller. With this sockets will not block....
-                    conn.setblocking(1)
-                    self.server.all_connections.append(conn)
-                    # Put the newly connected client to the list
-                    self.server.all_clients[username] = new_client
-                    # Push a message to the queue to notify that a new client is connected
-                    client_connected_message = Message(username, "server", "event", "Connected")
-
-                    self.inbox_queue.put(client_connected_message)
-
                 else:
+
                     try:
                         received_message = self.server.read_message_from_connection(connection)
                         # print("Received " + str(received_message))
+                        username = self.server.get_username_from_connection(connection)
+                        client = self.server.get_client_from_username(username)
 
                         if received_message is not None and received_message != b'':
                             json_string = received_message.decode("utf-8")
@@ -195,11 +160,13 @@ class SocketServerController(object):
                                 new_message = Message.json_string_to_message(json_string)
                                 self.inbox_queue.put(new_message)
 
+                                # current_seconds = int(round(time.time()))
+                                # client.last_ping = current_seconds
+
                             except Exception as e:
                                 print("Received unexpected message " + str(e) + " " + received_message)
-                        elif not self.server.is_client_alive(self.server.get_username_from_connection(connection)):
-                            username = self.server.get_username_from_connection(connection)
-                            client = self.server.get_client_from_username(username)
+                        elif not self.is_client_alive(client): # if the client is spamming us with b'' we should check whether it is dead or not.
+
                             self.server.remove_client(client)
 
                             client_disconnected_message = Message("server", "server", "event",
@@ -214,7 +181,7 @@ class SocketServerController(object):
                         username = self.server.get_username_from_connection(connection)
                         print(username)
 
-                        if not self.server.is_client_alive(username):
+                        if not self.is_client_alive(username):
 
                             self.server.remove_client(username)
 
@@ -382,10 +349,6 @@ class SocketServerController(object):
 
         # TODO Monitor threads for crashes
 
-        # accept_connections_thread = threading.Thread(target=self.accept_connections)
-        # accept_connections_thread.setName("Comm Accept Thread")
-        # accept_connections_thread.start()
-
         self.server.socket_create()
         self.server.socket_bind()
 
@@ -409,3 +372,30 @@ class SocketServerController(object):
         user_interface_thread = threading.Thread(target=self.ui)
         user_interface_thread.setName("UI Thread")
         user_interface_thread.start()
+
+        # Experimental
+        while 1:
+            if not receive_thread.is_alive():
+                receive_thread = threading.Thread(target=self.check_for_messages)
+                receive_thread.setName("Receive Thread")
+                receive_thread.start()
+
+            if not send_thread.is_alive():
+                send_thread = threading.Thread(target=self.send_messages)
+                send_thread.setName("Send Thread")
+                send_thread.start()
+
+            if not message_router_thread.is_alive():
+                message_router_thread = threading.Thread(target=self.message_routing)
+                message_router_thread.setName("Message Router Thread")
+                message_router_thread.start()
+
+            if not user_interface_thread.is_alive():
+                user_interface_thread = threading.Thread(target=self.ui)
+                user_interface_thread.setName("UI Thread")
+                user_interface_thread.start()
+
+            time.sleep(1)
+
+
+
