@@ -37,14 +37,6 @@ therefore your json encode would raise WTF error.
 
 """
 
-#
-# lock = threading.Lock()
-#
-#
-# client_received = Queue()
-# outbox = Queue()
-# UI_queue = Queue()
-
 
 class SocketCommunicator(object):
 
@@ -193,8 +185,7 @@ class SocketCommunicator(object):
          :param output_str: string message that will go to the server
         """
         if isinstance(client, str):
-            self.send_message_to_client_username(client, output_str)
-        else:
+            client = self.all_clients[client]
 
             client_socket = client.socket_connection
 
@@ -203,21 +194,21 @@ class SocketCommunicator(object):
             #  unsigned big endian struct to make sure that it is always constant length
             client_socket.send(struct.pack('>I', len(byte_array_message)) + byte_array_message)
 
-    def send_message_to_client_username(self, username, output_str):
-        # TODO throw client not found exception
-        # TODO throw socket closed exception
-        """ Sends message to the client
-         :param client: the username of the client
-         :param output_str: string message that will go to the server
-        """
-        client = self.all_clients[username]
-
-        client_socket = client.socket_connection
-
-        byte_array_message = str.encode(output_str)
-        # We are packing the length of the packet to
-        #  unsigned big endian struct to make sure that it is always constant length
-        client_socket.send(struct.pack('>I', len(byte_array_message)) + byte_array_message)
+    # def send_message_to_client_username(self, username, output_str):
+    #     # TODO throw client not found exception
+    #     # TODO throw socket closed exception
+    #     """ Sends message to the client
+    #      :param client: the username of the client
+    #      :param output_str: string message that will go to the server
+    #     """
+    #     client = self.all_clients[username]
+    #
+    #     client_socket = client.socket_connection
+    #
+    #     byte_array_message = str.encode(output_str)
+    #     # We are packing the length of the packet to
+    #     #  unsigned big endian struct to make sure that it is always constant length
+    #     client_socket.send(struct.pack('>I', len(byte_array_message)) + byte_array_message)
 
     def get_client_from_username(self, username):
 

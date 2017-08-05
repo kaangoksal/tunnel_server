@@ -1,11 +1,6 @@
 
 from Message import Message
-# from server.server_communicator import UI_queue
-# from server.server_communicator import client_received
-# from server.server_communicator import outbox
-
 from threading import Timer
-
 from color_print import ColorPrint
 import select
 import threading
@@ -89,6 +84,10 @@ class SocketServerController(object):
                 # hostname = json_package["hostname"]
                 # host_system_username = json_package["host_system_username"]
 
+                if self.server.all_clients.get(username, None) is not None:
+                    # This means that the client reconnected before we noticed it
+                    self.server.remove_client(self.server.all_clients[username])
+
                 new_client = socket_client(username, password, conn)
 
                 # Ping timer checks whether the client is alive or not by pinging it
@@ -134,7 +133,7 @@ class SocketServerController(object):
 
     def check_for_messages(self):
         while True:
-            #print("will do select! ")
+            # print("will do select! ")
             readable, writable, exceptional = select.select(self.server.all_connections, [], [])
 
             print("Readable " + str(readable))
@@ -224,49 +223,6 @@ class SocketServerController(object):
 
                             self.inbox_queue.put(client_disconnected_message)
 
-    # def send_messages_client(self, client):
-    #     while client.status:
-    #         # Blocking call!
-    #         departure_message = client.outbox_queue.get()
-    #         try:
-    #              self.server.send_message_to_client(departure_message.to, departure_message.pack_to_json_string())
-    #              print("Sent Message to client " + departure_message.pack_to_json_string())
-    #         except Exception as e:
-    #             print("Exception occurred while sending message " + str(e))
-    #
-    #             if not self.server.is_client_alive(client):
-    #                 self.server.remove_client(client)
-    #                 client.status = False # kills the client!
-    #
-    # def receive_messages_client(self, client):
-    #     while client.status:
-    #         try:
-    #             #blocking call!
-    #             received_message = self.server.read_message_from_connection(client.socket_client)
-    #
-    #             if received_message is not None and received_message != b'':
-    #                 json_string = received_message.decode("utf-8")
-    #
-    #                 try:
-    #                     new_message = Message.json_string_to_message(json_string)
-    #                     client.inbox_queue.put(new_message)
-    #                 except Exception as e:
-    #                     print("Received unexpected message " + str(e) + " " + received_message)
-    #         except Exception as e:
-    #             print("Exception occurred in check_for_messages " + str(e) +
-    #                                   " All Clients dict " + str(self.server.all_clients))
-    #
-    #             if not self.server.is_client_alive(client):
-    #
-    #                 self.server.remove_client(client)
-    #                 client.status = False
-    #
-    #                 client_disconnected_message = Message("server", "server", "event",
-    #                                                     "Client Disconnected " + str(client.username))
-    #
-    #                 self.inbox_queue.put(client_disconnected_message)
-    #
-
     def ui(self):
         while True:
             try:
@@ -311,9 +267,6 @@ class SocketServerController(object):
         #                   self.server.all_connections, self.server.all_connections)
         # print(readable)
 
-
-
-
     def ui_read_messages(self):
         print("Listing messages")
         print(self.UI_queue.not_empty)
@@ -341,7 +294,7 @@ class SocketServerController(object):
 
         if user_input == "1":
             print("[SSH MENU 2] Select Client")
-            available_clients = self.server.list_available_clients()
+            available_clients = self.server.list_available_client_usernames()
             i = 0
             for client in available_clients:
                 print(str(i) + " " + client)
