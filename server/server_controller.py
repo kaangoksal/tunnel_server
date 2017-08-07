@@ -138,7 +138,7 @@ class SocketServerController(object):
             try:
                 self.server.send_message_to_client(departure_message.to, departure_message.pack_to_json_string())
                 self.logger.info("Sent message to client " + str(departure_message.pack_to_json_string()))
-                print("Sent Message to client " + departure_message.pack_to_json_string())
+                #print("Sent Message to client " + departure_message.pack_to_json_string())
             except Exception as e:
                 print("Exception occurred in send message " + str(e))
                 self.logger.error("Exception occured while sending message " + str(e))
@@ -229,7 +229,7 @@ class SocketServerController(object):
             if self.inbox_queue.not_empty:
                 new_block = self.inbox_queue.get()
 
-                print("DEBUG " + str(new_block))
+                #print("DEBUG " + str(new_block))
                 self.logger.debug("[message_routing] Routing message " + str(new_block))
 
                 if new_block.type == "message":

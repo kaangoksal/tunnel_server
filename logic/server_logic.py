@@ -34,6 +34,7 @@ class ServerLogic(object):
     def ui_info(self):
         print("[Information Panel]")
         print("-------Connected Clients--------")
+        print("\n")
 
         dict_copy = self.server_controller.server.all_clients
 
@@ -43,18 +44,21 @@ class ServerLogic(object):
             current_seconds = int(round(time.time()))
             print(str(counter) + ") " + client.username + " Last ping " + str(client.last_ping - current_seconds) + " " + str(id(client)))
             counter += 1
-
+        print("\n")
         print("------All connections-------")
+        print("\n")
         counter = 0
         for connection in self.server_controller.server.all_connections:
             if counter > 0:
                 (ip, port) = connection.getpeername()
                 print(str(counter) + ") " + str(
-                    ip) + "username " + self.server_controller.server.get_username_from_connection(connection))
+                    ip) + " username " + self.server_controller.server.get_username_from_connection(connection))
             else:
                 print(str(counter) + ") " + str(connection))
             counter += 1
+        print("\n")
         print("-------Running threads----------")
+        print("\n")
         for thread in threading.enumerate():
             print(thread)
 
