@@ -41,24 +41,22 @@ class ServerLogic(object):
         for username in dict_copy.keys():
             client = dict_copy[username]
             current_seconds = int(round(time.time()))
-            print(str(counter) + ") " + client.username + " Last ping " + str(client.last_ping - current_seconds))
+            print(str(counter) + ") " + client.username + " Last ping " + str(client.last_ping - current_seconds) + " " + str(id(client)))
             counter += 1
 
         print("------All connections-------")
         counter = 0
         for connection in self.server_controller.server.all_connections:
             if counter > 0:
+                (ip, port) = connection.getpeername()
                 print(str(counter) + ") " + str(
-                    connection) + "derived username " + self.server_controller.server.get_username_from_connection(connection))
+                    ip) + "username " + self.server_controller.server.get_username_from_connection(connection))
             else:
                 print(str(counter) + ") " + str(connection))
             counter += 1
-
-            # print ("select shit")
-            # readable, writable, exceptional = \
-            #     select.select(self.server.all_connections,
-            #                   self.server.all_connections, self.server.all_connections)
-            # print(readable)
+        print("-------Running threads----------")
+        for thread in threading.enumerate():
+            print(thread)
 
     def ui_read_messages(self):
         print("Listing messages")

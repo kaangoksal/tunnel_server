@@ -17,6 +17,7 @@ if __name__ == "__main__":
     ui_logic = ServerLogic()
     ui_logic.server_controller = server_controller
     #we start the server_controller first, and then the ui.
-    server_controller.start()
     ui_logic.start()
+    server_controller.start()
+
 

@@ -28,6 +28,8 @@ V 0.0.13
 
 - socket connection will be terminated if the client does not reply the ping requests
 - improved agility furhter, client logic is seperated from the actual server code.
+- there is only one ping thread now
+- added thread info to gui
 
 
 V 0.0.12

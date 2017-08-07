@@ -21,41 +21,65 @@ class SocketServerController(object):
 
         self.socket_time_out = 1
         self.ping_timer_time = 20
-        self.ping_deadline = 25
+        self.ping_deadline = 60
 
         # This object is responsible from reporting events
         self.event_notifier = None
+        self.status = True
 
     def start(self):
         self.initialize_threads()
         self.server.register_signal_handler()
 
-    def ping(self, client):
+    def ping(self):
         """
         This method constantly pings the users to check whether their connections
         are still alive. It triggers timers
         :param client: the client object
         :return: nothing
         """
+        while self.status:
+            client_usernames = self.server.all_clients.keys()
+            for client_username in client_usernames:
+                client = self.server.all_clients.get(client_username, None)
+                if client is not None:
+                    seconds = int(round(time.time()))
+                    if seconds - client.last_ping < self.ping_deadline:
+                        payload = {"utility_type": "PING"}
+                        message = Message("server", client.username, "utility", json.dumps(payload))
+                        self.outbox_queue.put(message)
+                    else:
+                        # This means that client was not removed so we can remove it!
+                        ColorPrint.print_message("Warning", "Ping", "kicking the client " + str(client.username))
+                        self.server.remove_client(client)
+                        client_disconnected_message = Message("server", "server", "event",
+                                                              "Client Disconnected " + str(client))
+                        self.inbox_queue.put(client_disconnected_message)
+            time.sleep(self.ping_timer_time)
 
-        seconds = int(round(time.time()))
-        if seconds - client.last_ping < self.ping_deadline:
-
-            payload = {"utility_type": "PING"}
-
-            message = Message("server", client.username, "utility", json.dumps(payload))
-
-            # self.server.send_message_to_client(client.username, message.pack_to_json_string())
-            self.outbox_queue.put(message)
-            # ping timer relaunches itself if the message was successful
-            t = Timer(self.ping_timer_time, self.ping, [client])
-            t.start()
-        #elif not self.server.is_client_alive(client):
-        else:
-            ColorPrint.print_message("Warning", "Ping", "kicking the client " + str(client.username))
-            self.server.remove_client(client)
-            client_disconnected_message = Message("server", "server", "event", "Client Disconnected " + str(client))
-            self.inbox_queue.put(client_disconnected_message)
+        # # client = self.server.get_client_from_username(username)
+        #
+        # seconds = int(round(time.time()))
+        # if seconds - client.last_ping < self.ping_deadline and client.status:
+        #
+        #     payload = {"utility_type": "PING"}
+        #
+        #     message = Message("server", client.username, "utility", json.dumps(payload))
+        #
+        #     # self.server.send_message_to_client(client.username, message.pack_to_json_string())
+        #     self.outbox_queue.put(message)
+        #     # ping timer relaunches itself if the message was successful
+        #     t = Timer(self.ping_timer_time, self.ping, [client])
+        #     t.start()
+        # #elif not self.server.is_client_alive(client):
+        # elif self.server.all_clients.get(client.username, None) is not None and client.status:
+        #     print(client)
+        #     print(id(client))
+        #     #This means that client was not removed so we can remove it!
+        #     ColorPrint.print_message("Warning", "Ping", "kicking the client " + str(client.username))
+        #     self.server.remove_client(client)
+        #     client_disconnected_message = Message("server", "server", "event", "Client Disconnected " + str(client))
+        #     self.inbox_queue.put(client_disconnected_message)
 
     def is_client_alive(self, client):
         """
@@ -67,19 +91,17 @@ class SocketServerController(object):
         # client_conn = self.get_client_from_username(client)
 
         seconds = int(round(time.time()))
-        if seconds - client.last_ping < self.ping_deadline:
+        if client is None or seconds - client.last_ping < self.ping_deadline:
             return False
         else:
             return True
 
     def accept_connections(self):
-        print("bout to accept")
         conn, address = self.server.socket.accept()
         # If set blocking is 0 server does not wait for message and this try block fails.
         conn.setblocking(1)
 
         # This is a special message since it is authentication
-        print("reading from connectione")
         json_string = self.server.read_message_from_connection(conn).decode("utf-8")
 
         print("Accepting connection " + str(json_string))
@@ -91,11 +113,17 @@ class SocketServerController(object):
         # hostname = json_package["hostname"]
         # host_system_username = json_package["host_system_username"]
 
+        if self.server.all_clients.get(username, None) is not None:
+            # This means that the client reconnected before we noticed it
+            old_client = self.server.all_clients[username]
+            self.server.remove_client(old_client)
+
         new_client = socket_client(username, password, conn)
 
         # Ping timer checks whether the client is alive or not by pinging it
-        t = Timer(self.ping_timer_time, self.ping, [new_client])
-        t.start()
+        # t = Timer(self.ping_timer_time, self.ping, [new_client.username])
+        # new_client.ping_timer = t
+        # t.start()
 
         # we need set blocking 0 so that select works in server_controller. With this sockets will not block....
         conn.setblocking(1)
@@ -232,6 +260,7 @@ class SocketServerController(object):
         receive_thread.setName("Receive Thread")
         receive_thread.start()
 
+
         send_thread = threading.Thread(target=self.send_messages)
         send_thread.setName("Send Thread")
         send_thread.start()
@@ -239,6 +268,10 @@ class SocketServerController(object):
         message_router_thread = threading.Thread(target=self.message_routing)
         message_router_thread.setName("Message Router Thread")
         message_router_thread.start()
+
+        ping_thread = threading.Thread(target=self.ping)
+        ping_thread.setName("Ping Thread")
+        ping_thread.start()
 
 
         # Experimental

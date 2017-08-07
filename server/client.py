@@ -12,9 +12,11 @@ class socket_client(object):
         self.outbox_queue = Queue()
         # Last time that a ping was received in seconds
         self.last_ping = int(round(time.time()))
+        self.ping_timer = None
         self.status = True
 
     def __str__(self):
-        return "Client with object of username: " + self.username
+        seconds = int(round(time.time()))
+        return "Client with object of username: " + self.username + " last ping " + str(seconds-self.last_ping)
 
 
