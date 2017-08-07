@@ -137,7 +137,7 @@ class SocketServerController(object):
             departure_message = self.outbox_queue.get()
             try:
                 self.server.send_message_to_client(departure_message.to, departure_message.pack_to_json_string())
-                self.logger.info("Sent message to client " + departure_message.pack_to_json_string)
+                self.logger.info("Sent message to client " + str(departure_message.pack_to_json_string()))
                 print("Sent Message to client " + departure_message.pack_to_json_string())
             except Exception as e:
                 print("Exception occurred in send message " + str(e))
