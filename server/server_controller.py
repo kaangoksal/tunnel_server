@@ -53,7 +53,7 @@ class SocketServerController(object):
         """
         while self.status:
             client_usernames = self.server.all_clients.keys()
-            for client_username in client_usernames:
+            for client_username in list(client_usernames):
                 client = self.server.all_clients.get(client_username, None)
                 if client is not None:
                     seconds = int(round(time.time()))
