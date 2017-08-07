@@ -3,7 +3,7 @@ It handles client connections, reads their messages and sends them messages from
 
 clients have tasks, such as  
 - reverse ssh  
-- gstreamer  
+- live video
 - software update  
 these are executed in different subprocesses. 
 
@@ -17,10 +17,17 @@ and the operator needs to know the username and the password for the clients (us
 
 Version History
 
+- Stuff to be implemented
+- Logger
+- Database for authentication, and event logging
+- Notification sender (to notify admins realtime)
+
+
+
 V 0.0.13
 
 - socket connection will be terminated if the client does not reply the ping requests
-- 
+- improved agility furhter, client logic is seperated from the actual server code.
 
 
 V 0.0.12
