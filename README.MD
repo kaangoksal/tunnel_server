@@ -15,13 +15,19 @@ and the operator needs to know the username and the password for the clients (us
 
 
 
-Version History
+**Version History**  
 
-- Stuff to be implemented
-- Logger
-- Database for authentication, and event logging
-- Notification sender (to notify admins realtime)
+Stuff to be implemented  
+- Database for authentication, and event logging  
+- Notification sender (to notify admins realtime)  
+- Log retrieval, automatic software updater
+- Live video start
 
+
+V 0.0.14 
+
+- Implemented logger  
+- Implemented thread watchdog which will bring the crashed threads to life  
 
 
 V 0.0.13

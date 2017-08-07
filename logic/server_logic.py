@@ -61,6 +61,7 @@ class ServerLogic(object):
         print("\n")
         for thread in threading.enumerate():
             print(thread)
+        print("\n")
 
     def ui_read_messages(self):
         print("Listing messages")
