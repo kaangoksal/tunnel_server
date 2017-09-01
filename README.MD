@@ -22,6 +22,7 @@ Stuff to be implemented
 - Notification sender (to notify admins realtime)  
 - Log retrieval, automatic software updater
 - Live video start
+- Logs for individual clients
 
 
 V 0.0.14 

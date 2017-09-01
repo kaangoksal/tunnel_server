@@ -6,6 +6,10 @@ import select
 import threading
 import json
 import time
+
+import signal
+import sys
+
 from queue import Queue
 from server.client import socket_client
 
@@ -44,6 +48,21 @@ class SocketServerController(object):
         self.initialize_threads()
         self.server.register_signal_handler()
 
+    def register_signal_handler(self):
+        """
+        This method registers signal handlers which will do certain stuff before the server terminates
+        :return:
+        """
+        signal.signal(signal.SIGINT, self.quit_gracefully)
+        signal.signal(signal.SIGTERM, self.quit_gracefully)
+        return
+
+    def quit_gracefully(self, signal=None, frame=None):
+        self.status = False
+        print("Shutting down")
+        sys.exit(0)
+
+
     def ping(self):
         """
         This method constantly pings the users to check whether their connections
@@ -72,6 +91,8 @@ class SocketServerController(object):
                                                               "Client Disconnected " + str(client))
                         self.inbox_queue.put(client_disconnected_message)
             time.sleep(self.ping_timer_time)
+
+        print("Ping shutting down")
 
     def is_client_alive(self, client):
         """
@@ -132,7 +153,7 @@ class SocketServerController(object):
         self.inbox_queue.put(client_connected_message)
 
     def send_messages(self):
-        while True:
+        while self.status:
             # blocking call
             departure_message = self.outbox_queue.get()
             try:
@@ -154,9 +175,10 @@ class SocketServerController(object):
                     self.logger.warning("[send_messages] removing client " + str(username))
 
                     self.inbox_queue.put(client_disconnected_message)
+        print("Send Messages shutting down")
 
     def check_for_messages(self):
-        while True:
+        while self.status:
             # print("will do select! ")
             readable, writable, exceptional = select.select(self.server.all_connections, [], [])
 
@@ -223,8 +245,10 @@ class SocketServerController(object):
 
                             self.inbox_queue.put(client_disconnected_message)
 
+        print("Read Messages shutting down")
+
     def message_routing(self):
-        while True:
+        while self.status:
 
             if self.inbox_queue.not_empty:
                 new_block = self.inbox_queue.get()
@@ -242,6 +266,7 @@ class SocketServerController(object):
                     self.handle_utility(new_block)
                 else:
                     ColorPrint.print_message("Warning", str(new_block.sender), str(new_block.payload))
+        print("Message routing shutting down")
 
     def handle_utility(self, message):
         client = self.server.get_client_from_username(message.sender)
@@ -264,7 +289,6 @@ class SocketServerController(object):
         receive_thread.setName("Receive Thread")
         receive_thread.start()
 
-
         send_thread = threading.Thread(target=self.send_messages)
         send_thread.setName("Send Thread")
         send_thread.start()
@@ -279,7 +303,7 @@ class SocketServerController(object):
 
 
         # Experimental
-        while 1:
+        while self.status:
             if not receive_thread.is_alive():
                 self.logger.error("[Main Thread] receive thread is dead")
                 receive_thread = threading.Thread(target=self.check_for_messages)
@@ -305,6 +329,7 @@ class SocketServerController(object):
                 ping_thread.start()
 
             time.sleep(1)
+        print("server controller shutting down")
 
 
 

@@ -1,5 +1,6 @@
 from queue import Queue
 import time
+import datetime
 
 
 class socket_client(object):
@@ -14,6 +15,7 @@ class socket_client(object):
         self.last_ping = int(round(time.time()))
         self.ping_timer = None
         self.status = True
+        self.connection_time = datetime.datetime.now()
 
     def __str__(self):
         seconds = int(round(time.time()))

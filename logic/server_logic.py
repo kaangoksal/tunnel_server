@@ -2,6 +2,8 @@ from color_print import ColorPrint
 import time
 from Message import Message
 import json
+import signal
+import sys
 import threading
 
 
@@ -15,8 +17,21 @@ class ServerLogic(object):
         self.user_interface_thread.setName("UI Thread")
         self.user_interface_thread.start()
 
+    def register_signal_handler(self):
+        """
+        This method registers signal handlers which will do certain stuff before the server terminates
+        :return:
+        """
+        signal.signal(signal.SIGINT, self.quit_gracefully)
+        signal.signal(signal.SIGTERM, self.quit_gracefully)
+        return
+
+    def quit_gracefully(self, signal=None, frame=None):
+        print("Shutting down")
+        sys.exit(0)
+
     def ui(self):
-        while True:
+        while self.server_controller.status:
             try:
                 print("Please input command [ssh, read_messages, info]")
                 user_input = input()
@@ -30,6 +45,7 @@ class ServerLogic(object):
 
             except EOFError as e:
                 ColorPrint.print_message("Error", "UI", "Exception occurred " + str(e))
+        print("UI Terminating")
 
     def ui_info(self):
         print("[Information Panel]")
@@ -76,7 +92,7 @@ class ServerLogic(object):
             # username, type_of_event, message = new_block
 
             if new_block.type is "event":
-                ColorPrint.print_message("Event", str(new_block.sender), new_block.payload)
+                ColorPrint.print_message("Event", str(new_block.sender), new_block.payload + " -Message Created " + str(new_block.date))
             elif new_block.type is "message":
                 ColorPrint.print_message("Message", str(new_block.sender), new_block.payload)
 
