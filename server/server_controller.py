@@ -77,9 +77,10 @@ class SocketServerController(object):
                 if client is not None:
                     seconds = int(round(time.time()))
                     if seconds - client.last_ping < self.ping_deadline:
-                        payload = {"utility_type": "PING"}
-                        message = Message("server", client.username, "utility", json.dumps(payload))
-                        self.outbox_queue.put(message)
+                        # payload = {"utility_type": "PING"}
+                        # message = Message("server", client.username, "utility", json.dumps(payload))
+                        # self.outbox_queue.put(message)
+                        pass
                     else:
                         # This means that client was not removed so we can remove it!
                         ColorPrint.print_message("Warning", "Ping", "kicking the client " + str(client.username))
