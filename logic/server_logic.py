@@ -5,6 +5,7 @@ import json
 import signal
 import sys
 import threading
+import datetime
 
 
 class ServerLogic(object):
@@ -58,7 +59,8 @@ class ServerLogic(object):
         for username in dict_copy.keys():
             client = dict_copy[username]
             current_seconds = int(round(time.time()))
-            print(str(counter) + ") " + client.username + " Last ping " + str(client.last_ping - current_seconds) + " " + str(id(client)))
+            print(str(counter) + ") " + client.username + " Last ping " + str(client.last_ping - current_seconds) + " "
+                  + " Connection Time " + str(datetime.datetime.now() - client.connection_time))
             counter += 1
         print("\n")
         print("------All connections-------")
