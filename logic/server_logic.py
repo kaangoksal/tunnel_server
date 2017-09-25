@@ -34,7 +34,7 @@ class ServerLogic(object):
     def ui(self):
         while self.server_controller.status:
             try:
-                print("Please input command [ssh, read_messages, info]")
+                print("Please input command [ssh, read_messages, info, tools]")
                 user_input = input()
                 if user_input == "read_messages":
                     self.ui_read_messages()
@@ -43,10 +43,42 @@ class ServerLogic(object):
                     self.ui_ssh()
                 elif user_input == "info":
                     self.ui_info()
+                elif user_input == "tools":
+                    self.ui_tools()
 
             except EOFError as e:
                 ColorPrint.print_message("Error", "UI", "Exception occurred " + str(e))
         print("UI Terminating")
+
+    def ui_tools(self):
+        print("[Tools Panel]")
+        print("--------------Options------------")
+        print("\n")
+        print("1) Disconnect a client")
+        user_input = input()
+        if user_input == "1":
+
+            available_clients = self.server_controller.server.list_available_client_usernames()
+            i = 0
+            for client in available_clients:
+                print(str(i) + " " + client)
+                i += 1
+            print(str(len(available_clients)) + " Cancel")
+
+            # Never trust the user
+            try:
+                user_input = input()
+                if int(user_input) < len(available_clients):
+
+                    user = list(available_clients)[int(user_input)]
+                    self.server_controller.server.remove_client(self.server_controller.server.all_clients[user])
+
+                else:
+                    pass
+            except Exception as e:
+                print("Invalid input " + str(e))
+
+
 
     def ui_info(self):
         print("[Information Panel]")

@@ -24,27 +24,46 @@ Stuff to be implemented
 - Live video start
 - Logs for individual clients
 
+V 0.0.19 (Future) 
+- Encrypt Communications 
+- Authenticate Server
 
-V 0.0.14 
+V 0.0.18 (Future)  
+- Log retrieval from clients  
+- Remote software update  
+- Automate key registration
 
+V 0.0.17 (Future)   
+- Interprocess communication for frontend  
+  -- Types of clients (device, localsoftware)  
+- Accomodate different message types and commands, route them accordingly
+- Work on Agility
+
+V 0.0.16 (Future)  
+- Authenticate clients 
+- Log events in tables
+- Clean up object and class names
+- Using actual handlers
+- Seperate processes for handlers
+
+V 0.0.15 (Current)
+- Clients ping the server now
+- Server keeps session times
+- Integrating PostgreSQL
+
+V 0.0.14 (Deployed Beta)
 - Implemented logger  
 - Implemented thread watchdog which will bring the crashed threads to life  
 
-
 V 0.0.13
-
 - socket connection will be terminated if the client does not reply the ping requests
 - improved agility furhter, client logic is seperated from the actual server code.
 - there is only one ping thread now
 - added thread info to gui
 
-
 V 0.0.12
-
 - added safe-guards for empty byte array storms.
 - optimized for cpu spikes, select blocks until there is a message
 
-
 V 0.0.1
-
 - Added new commands for ssh stop

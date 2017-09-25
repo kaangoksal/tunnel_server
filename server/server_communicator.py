@@ -209,7 +209,7 @@ class SocketCommunicator(object):
 
             self.all_connections.remove(client_conn)
 
-            # client_conn.shutdown(2)
+            client_conn.shutdown(2)
             client_conn.close()
         except Exception as e:
             # Probably client is already removed
