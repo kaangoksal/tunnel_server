@@ -58,7 +58,7 @@ class ServerLogic(object):
         user_input = input()
         if user_input == "1":
 
-            available_clients = self.server_controller.server.list_available_client_usernames()
+            available_clients = self.server_controller.list_available_client_usernames()
             i = 0
             for client in available_clients:
                 print(str(i) + " " + client)
@@ -71,7 +71,7 @@ class ServerLogic(object):
                 if int(user_input) < len(available_clients):
 
                     user = list(available_clients)[int(user_input)]
-                    self.server_controller.server.remove_client(self.server_controller.server.all_clients[user])
+                    self.server_controller.remove_client(self.server_controller.all_clients[user])
 
                 else:
                     pass
@@ -85,7 +85,7 @@ class ServerLogic(object):
         print("-------Connected Clients--------")
         print("\n")
 
-        dict_copy = self.server_controller.server.all_clients
+        dict_copy = self.server_controller.all_clients
 
         counter = 0
         for username in dict_copy.keys():
@@ -98,11 +98,11 @@ class ServerLogic(object):
         print("------All connections-------")
         print("\n")
         counter = 0
-        for connection in self.server_controller.server.all_connections:
+        for connection in self.server_controller.all_connections:
             if counter > 0:
                 (ip, port) = connection.getpeername()
                 print(str(counter) + ") " + str(
-                    ip) + " username " + self.server_controller.server.get_username_from_connection(connection))
+                    ip) + " username " + self.server_controller.get_username_from_connection(connection))
             else:
                 print(str(counter) + ") " + str(connection))
             counter += 1
@@ -140,7 +140,7 @@ class ServerLogic(object):
 
         if user_input == "1":
             print("[SSH MENU 2] Select Client")
-            available_clients = self.server_controller.server.list_available_client_usernames()
+            available_clients = self.server_controller.list_available_client_usernames()
             i = 0
             for client in available_clients:
                 print(str(i) + " " + client)
@@ -172,7 +172,7 @@ class ServerLogic(object):
 
         elif user_input == "2":
             print("[SSH MENU] Select Client to Close Connection")
-            available_clients = self.server_controller.server.list_available_client_usernames()
+            available_clients = self.server_controller.list_available_client_usernames()
             i = 0
             for client in available_clients:
                 print(str(i) + " " + client)

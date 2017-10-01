@@ -22,7 +22,8 @@ class socket_client(object):
         # Stores the ping timer object for the client, seems to be unused
         self.ping_timer = None
 
-
+    def update_last_ping(self):
+        self.last_ping = int(round(time.time()))
 
 
     def __str__(self):

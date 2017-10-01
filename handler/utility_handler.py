@@ -17,15 +17,20 @@ class UtilityHandler(object):
         self.server = server
 
     def handle_message(self, message):
-        if message.type == "utility":
-            payload = message.payload
-            utility_group = payload["utility_group"]
-            if utility_group == "ping":
-                ping_payload = {"utility_group": "ping"}
-                ping_message = Message("server", message.sender, MessageType.utility, ping_payload )
-                self.server.send_message_to_client(ping_message)
-            else:
-                pass
+        payload = message.payload
+        utility_group = payload["utility_group"]
+        if utility_group == "ping":
+            self.handle_ping(message)
+        else:
+            pass
+
+    def handle_ping(self, message):
+        client = self.server.get_client_from_username(message.sender)
+        client.update_last_ping()
+
+        ping_payload = {"utility_group": "ping"}
+        ping_message = Message("server", message.sender, MessageType.utility, ping_payload)
+        self.server.send_message_to_client(ping_message)
 
     def __str__(self):
         return "MessageHandler Object with " + str(self.utility_handlers)

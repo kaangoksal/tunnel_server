@@ -71,7 +71,6 @@ class Message(object):
         """
         json_package = json.loads(json_string)
 
-
         payload = json.loads(json_package["payload"])
 
         message_type = MessageType[json_package["type"]]
