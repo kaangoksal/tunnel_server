@@ -5,14 +5,14 @@
 from handler.message_handler import MessageHandler
 from handler.utility_handler import UtilityHandler
 from server.server_controller import SocketServerController
-from server.server_communicator import SocketCommunicator
+from server.server_socket_layer import ServerSocketLayer
 from logic.server_logic import ServerLogic
 from Message import MessageType
 
 
 if __name__ == "__main__":
     # Socket communicator is for talking with the clients
-    server = SocketCommunicator(9000)
+    server = ServerSocketLayer(9000)
     # Server controller pings receives and sends messages and checks on the clients
     server_controller = SocketServerController(server)
 

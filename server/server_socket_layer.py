@@ -9,8 +9,9 @@ Author: Kaan Goksal
 """
 
 # TODO add SSL
-# TODO Implement Logger
+# TODO Revise docs,
 # TODO authentication for accept connections, Can use RSA
+# TODO Cross device compability?
 
 import socket
 import sys
@@ -39,7 +40,7 @@ therefore your json encode would raise WTF error.
 """
 
 
-class SocketCommunicator(object):
+class ServerSocketLayer(object):
 
     def __init__(self, port, host=''):
         """
