@@ -7,9 +7,33 @@ Author: Kaan Goksal
 """
 import datetime
 import json
+from enum import Enum
 
 
 class Message(object):
+
+    """
+    {   sender: "raspi1",
+        to: "server",
+        type: "event",
+        date: datetime.datetime.now(),
+        receive_date: None
+        payload: { "event_type" : "motion" }
+
+    }
+
+
+    {   sender: "raspi1",
+        to: "server",
+        type: "utility",
+        date: datetime.datetime.now(),
+        receive_date: None
+        payload: { "utility_group" : "ping"}
+
+    }
+
+
+    """
 
     def __init__(self, sender, to, message_type, payload):
         self.sender = sender
@@ -30,8 +54,8 @@ class Message(object):
         return_dict = {
             "sender": self.sender,
             "to": self.to,
-            "type": self.type,
-            "payload": self.payload,
+            "type": self.type.value,
+            "payload": json.dumps(self.payload),
             "date": str(self.date)
                        }
         return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
@@ -46,8 +70,11 @@ class Message(object):
         :return: Message object
         """
         json_package = json.loads(json_string)
-        payload = json_package["payload"]
-        message_type = json_package["type"]
+
+        payload = json.loads(json_package["payload"])
+
+        message_type = MessageType[json_package["type"]]
+
         to = json_package["to"]
         sender = json_package["sender"]
         return_message = Message(sender, to, message_type, payload)
@@ -58,3 +85,14 @@ class Message(object):
         return_message.receive_date = datetime.datetime.now()
 
         return return_message
+
+
+class MessageType(Enum):
+    def __str__(self):
+        return str(self.value)
+
+    utility = "utility"
+    communication = "communication"
+    action = "action"
+    event = "event"
+

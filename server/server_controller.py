@@ -1,28 +1,35 @@
-
 from Message import Message
+from Message import MessageType
 import logging
 from color_print import ColorPrint
 import select
 import threading
 import json
 import time
-
+import datetime
 import signal
 import sys
+import traceback
 
 from queue import Queue
 from server.client import socket_client
+from handler.message_handler import MessageHandler
 
 
 class SocketServerController(object):
-
-    def __init__(self, server):
+    def __init__(self, comm_layer):
 
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 
+        # Dictionary of client_username:client object
+        self.all_clients = {}
+
+        # Dictionary of socket connections
+        self.all_connections = []
+
         handler = logging.FileHandler('server.log')
-        handler.setLevel(logging.DEBUG)
+        handler.setLevel(logging.INFO)
 
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
@@ -30,7 +37,7 @@ class SocketServerController(object):
         self.logger.addHandler(handler)
         self.logger.info("Server started")
 
-        self.server = server
+        self.comm_layer = comm_layer
         self.inbox_queue = Queue()
         self.outbox_queue = Queue()
 
@@ -40,13 +47,28 @@ class SocketServerController(object):
         self.ping_timer_time = 20
         self.ping_deadline = 60
 
+        self.message_handler = None
         # This object is responsible from reporting events
         self.event_notifier = None
         self.status = True
 
     def start(self):
+        """
+        Initializes the threads which checks for messages, sends messages, monitors threads, routes messages and also registers
+        signal handlers for termination.
+        :return:
+        """
         self.initialize_threads()
-        self.server.register_signal_handler()
+        self.register_signal_handler()
+
+    def send_message_to_client(self, message):
+        """
+        This is a higher level method for sending messages to the clients, it pushes the message to the queue
+        and the thread which is responsible for sending the messages process the message and send it to the socket.
+        :param message: message object
+        :return: nothing
+        """
+        self.outbox_queue.put(message)
 
     def register_signal_handler(self):
         """
@@ -58,42 +80,80 @@ class SocketServerController(object):
         return
 
     def quit_gracefully(self, signal=None, frame=None):
+        """
+        This is for termination of the server, it is supposed to cleanup nicely, however due to the code which checks
+        for thread health, this does not cleanup nicely.
+        :param signal:
+        :param frame:
+        :return:
+        """
         self.status = False
         print("Shutting down")
+        self.logger.info("[quit gracefully] quitting gracefully")
+        for conn in self.all_connections:
+            try:
+                self.comm_layer.close_connection(conn)
+            except Exception as e:
+                self.logger.error("[quit gracefully] could not close connection " + str(e))
+                self.logger.error("[quit gracefully] " + str(traceback.format_exc()))
+                # continue
+        self.comm_layer.close_connection(self.comm_layer.socket)
         sys.exit(0)
-
 
     def ping(self):
         """
         This method constantly pings the users to check whether their connections
         are still alive. It triggers timers
-        :param client: the client object
         :return: nothing
         """
         while self.status:
-            client_usernames = self.server.all_clients.keys()
+            client_usernames = self.all_clients.keys()
             for client_username in list(client_usernames):
-                client = self.server.all_clients.get(client_username, None)
+                client = self.all_clients.get(client_username, None)
                 if client is not None:
                     seconds = int(round(time.time()))
                     if seconds - client.last_ping < self.ping_deadline:
-                        # payload = {"utility_type": "PING"}
-                        # message = Message("server", client.username, "utility", json.dumps(payload))
-                        # self.outbox_queue.put(message)
+                        # used to send a ping message
                         pass
                     else:
                         # This means that client was not removed so we can remove it!
-                        ColorPrint.print_message("Warning", "Ping", "kicking the client " + str(client.username))
+                        self.remove_client(client)
 
-                        self.logger.warning("Kicking client, did not reply ping " +str(client.username))
-
-                        self.server.remove_client(client)
-                        client_disconnected_message = Message("server", "server", "event",
-                                                              "Client Disconnected " + str(client))
-                        self.inbox_queue.put(client_disconnected_message)
             time.sleep(self.ping_timer_time)
 
         print("Ping shutting down")
+
+    def remove_client(self, client, reason=None):
+        """
+        This method removes the client from the server in a higher level, it creates the appropriate messages,
+        logs the time stamp and such. In future mysql will also log sesion time here.
+        :param client: the client object that is being removed from the server
+        :return: nothing, literally nothing
+        """
+        total_session_time = datetime.datetime.now() - client.connection_time
+
+        ColorPrint.print_message("Warning", "remove_client", "kicking the client " + str(client.username) + " Reason " + str(reason))
+
+        self.logger.warning("Kicking client  "
+                            + str(client.username) + " Total Session Time " + str(total_session_time) + " Reason " + str(reason))
+        # cleaning up the sockets and such
+        client_conn = client.socket_connection
+
+        try:
+            self.all_clients.pop(client.username)
+
+            self.all_connections.remove(client_conn)
+
+            self.comm_layer.close_connection(client_conn)
+
+        except Exception as e:
+            # Probably client is already removed
+            self.logger.error("[remove client] remove_client error " + str(e))
+            self.logger.error("[remove client] " + str(traceback.format_exc()))
+
+        client_disconnected_message = Message("server", "server", "event",
+                                              "Client Disconnected " + str(client) + " Reason " + str(reason))
+        self.inbox_queue.put(client_disconnected_message)
 
     def is_client_alive(self, client):
         """
@@ -101,9 +161,6 @@ class SocketServerController(object):
         :param client: the username of the client
         :return: true if the client is alive, false if the client is not alive
         """
-        #
-        # client_conn = self.get_client_from_username(client)
-
         seconds = int(round(time.time()))
         if client is None or seconds - client.last_ping < self.ping_deadline:
             return False
@@ -111,16 +168,22 @@ class SocketServerController(object):
             return True
 
     def accept_connections(self):
-        conn, address = self.server.socket.accept()
+        """
+        This method accepts connections, however this method is called by check for messages, if the own server socket
+        is readable then this method is called to accept the incoming connection, later on new socket is created!
+        This method accepts the connection without authenticating it.
+        :return: nothing
+        """
+        conn, address = self.comm_layer.socket.accept()
         # If set blocking is 0 server does not wait for message and this try block fails.
         conn.setblocking(1)
 
         # This is a special message since it is authentication
-        json_string = self.server.read_message_from_connection(conn).decode("utf-8")
+        json_string = self.comm_layer.read_message_from_connection(conn).decode("utf-8")
 
         print("Accepting connection " + str(json_string))
 
-        self.logger.info("Acceptiong connection " + str(json_string))
+        self.logger.info("Accepting connection " + str(json_string))
 
         # new_message = Message.json_string_to_message(json_string)
         json_package = json.loads(json_string)
@@ -129,87 +192,82 @@ class SocketServerController(object):
         # hostname = json_package["hostname"]
         # host_system_username = json_package["host_system_username"]
 
-        if self.server.all_clients.get(username, None) is not None:
+        if self.all_clients.get(username, None) is not None:
             self.logger.info("User reconnected in short time " + str(username))
             # This means that the client reconnected before we noticed it
-            old_client = self.server.all_clients[username]
-            self.server.remove_client(old_client)
-
+            old_client = self.all_clients[username]
+            self.remove_client(old_client)
 
         new_client = socket_client(username, password, conn)
 
-        # Ping timer checks whether the client is alive or not by pinging it
-        # t = Timer(self.ping_timer_time, self.ping, [new_client.username])
-        # new_client.ping_timer = t
-        # t.start()
-
         # we need set blocking 0 so that select works in server_controller. With this sockets will not block....
         conn.setblocking(1)
-        self.server.all_connections.append(conn)
+        self.all_connections.append(conn)
         # Put the newly connected client to the list
-        self.server.all_clients[username] = new_client
+        self.all_clients[username] = new_client
         # Push a message to the queue to notify that a new client is connected
         client_connected_message = Message(username, "server", "event", "Connected")
 
         self.inbox_queue.put(client_connected_message)
 
     def send_messages(self):
+        """
+        This method sends messages that are in the outbox queue.
+        :return:
+        """
         while self.status:
             # blocking call
             departure_message = self.outbox_queue.get()
             try:
-                self.server.send_message_to_client(departure_message.to, departure_message.pack_to_json_string())
+                self._pass_message_to_comm_layer(departure_message.to, departure_message.pack_to_json_string())
                 self.logger.info("Sent message to client " + str(departure_message.pack_to_json_string()))
-                #print("Sent Message to client " + departure_message.pack_to_json_string())
+                # print("Sent Message to client " + departure_message.pack_to_json_string())
             except Exception as e:
                 print("Exception occurred in send message " + str(e))
                 self.logger.error("Exception occured while sending message " + str(e))
                 username = departure_message.to
 
-                client = self.server.get_client_from_username(username)
+                client = self.get_client_from_username(username)
 
                 if client is not None and not self.is_client_alive(client):
-                    self.server.remove_client(client)
+                    self.remove_client(client)
 
-                    client_disconnected_message = Message("server", "server",
-                                                          "event", "Client Disconnected " + str(username))
-                    self.logger.warning("[send_messages] removing client " + str(username))
-
-                    self.inbox_queue.put(client_disconnected_message)
         print("Send Messages shutting down")
 
     def check_for_messages(self):
+        """
+        This method checks for messages using select, if the readable port is the own server port, it means that we have
+        an incomming connection request, so we call accept connection for that.
+        :return:
+        """
         while self.status:
             # print("will do select! ")
-            readable, writable, exceptional = select.select(self.server.all_connections, [], [])
-
-            # print("Readable " + str(readable))
-            # print("All connections " + str(self.server.all_connections))
+            readable, writable, exceptional = select.select(self.all_connections, [], [])
 
             for connection in readable:
-                #print("reading conn " + str(connection))
-                if connection is self.server.socket:
+                # print("reading conn " + str(connection))
+                if connection is self.comm_layer.socket:
                     try:
                         self.accept_connections()
                     except Exception as e:
                         ColorPrint.print_message("ERROR", "accept_connection, check_for_messages",
                                                  'Error accepting connections: %s' % str(e))
                         self.logger.error("[check_for_messages] Error accepting connection " + str(e))
+                        self.logger.error("[check_for_messages] " + str(traceback.format_exc()))
                         # continue the loop
                         continue
                 else:
 
                     try:
-                        received_message = self.server.read_message_from_connection(connection)
+                        received_message = self.comm_layer.read_message_from_connection(connection)
                         # print("Received " + str(received_message))
 
-                        username = self.server.get_username_from_connection(connection)
-                        client = self.server.get_client_from_username(username)
+                        username = self.get_username_from_connection(connection)
+                        client = self.get_client_from_username(username)
 
                         if received_message is not None and received_message != b'':
                             json_string = received_message.decode("utf-8")
                             self.logger.info("Received message " + str(json_string) + " from " + str(username))
-
                             try:
                                 new_message = Message.json_string_to_message(json_string)
                                 self.inbox_queue.put(new_message)
@@ -219,72 +277,112 @@ class SocketServerController(object):
 
                             except Exception as e:
                                 print("Received unexpected message " + str(e) + " " + received_message)
-                                self.logger.error("[check_for_messages] received unexpected message " +str(received_message) + " " + str(e))
-                        elif not self.is_client_alive(client): # if the client is spamming us with b'' we should check whether it is dead or not.
+                                self.logger.error("[check_for_messages] received unexpected message "
+                                                  + str(received_message) + " " + str(e))
+                                self.logger.error("[check_for_messages] " + str(traceback.format_exc()))
 
-                            self.server.remove_client(client)
 
-                            client_disconnected_message = Message("server", "server", "event",
-                                                                  "Client Disconnected " + str(username))
-                            self.logger.warning("[check_for_messages] disconnected client "+ str(username))
-
-                            self.inbox_queue.put(client_disconnected_message)
+                        elif not self.is_client_alive(client):
+                            # if the client is spamming us with b'' we should check whether it is dead or not.
+                            self.remove_client(client, reason="B-storm")
 
                     except Exception as e:
                         print("Exception occurred in check_for_messages " + str(e))
-                        self.logger.error("[check_for_messages] Exception occured " +str(e))
-                        username = self.server.get_username_from_connection(connection)
-                        print(username)
+                        self.logger.error("[check_for_messages] Exception occured " + str(e))
+                        self.logger.error("[check_for_messages] " + str(traceback.format_exc()))
+                        username = self.get_username_from_connection(connection)
+                        client = self.get_client_from_username(username)
 
-                        if not self.is_client_alive(username):
-
-                            self.server.remove_client(username)
-
-                            client_disconnected_message = Message("server", "server", "event",
-                                                                  "Client Disconnected " + str(username))
-                            self.logger.warning("[check_for_messages] disconnected client " + str(username))
-
-                            self.inbox_queue.put(client_disconnected_message)
+                        if not self.is_client_alive(client) and client is not None:
+                            self.remove_client(client)
 
         print("Read Messages shutting down")
 
     def message_routing(self):
+        """
+        This method handles all the queues, it routes the incoming massages to appropriate queue's according to the
+        message type
+        :return:
+        """
         while self.status:
 
             if self.inbox_queue.not_empty:
                 new_block = self.inbox_queue.get()
 
-                #print("DEBUG " + str(new_block))
+                # print("DEBUG " + str(new_block))
                 self.logger.debug("[message_routing] Routing message " + str(new_block))
 
-                if new_block.type == "message":
+                if new_block.type == MessageType.event:
                     self.UI_queue.put(new_block)
-                elif new_block.type == "event":
-                    self.UI_queue.put(new_block)
-                elif new_block.type == "result":
-                    ColorPrint.print_message("Result", str(new_block.sender), new_block.payload)
-                elif new_block.type == "utility":
-                    self.handle_utility(new_block)
+                elif new_block.type == MessageType.utility:
+                    # self.handle_utility(new_block)
+                    self.message_handler.handle_message(new_block)
+                elif new_block.type == MessageType.communication:
+                    self.handle_comms(new_block)
                 else:
                     ColorPrint.print_message("Warning", str(new_block.sender), str(new_block.payload))
+                    self.logger.warning(
+                        "[Message Router] invalid message type " + str(new_block.sender) + " " + str(new_block.payload))
+
         print("Message routing shutting down")
 
     def handle_utility(self, message):
-        client = self.server.get_client_from_username(message.sender)
+        client = self.get_client_from_username(message.sender)
         seconds = int(round(time.time()))
         client.last_ping = seconds
 
+        ping_payload = {"utility_group": "ping"}
+        ping_message = Message("server", message.sender, MessageType.utility, ping_payload)
+        self.send_message_to_client(ping_message)
+
+    def handle_comms(self, message):
+        self.message_handler.handle_message(message)
+
+    def _pass_message_to_comm_layer(self, client_username, message):
+        client = self.all_clients[client_username]
+        client_socket = client.socket_connection
+        self.comm_layer.send_message_to_socket(client_socket, message)
+
+    def list_available_client_usernames(self):
+        """
+        Lists the usernames of the available clients
+        :return: list of connected clients usernames as a string list
+        """
+        connected_clients = self.all_clients.keys()
+        return connected_clients
+
+    def get_username_from_connection(self, conn):
+        # TODO check whether this works
+        """
+        This method returns username from given connection
+        :param conn: connection that belongs to some username
+        :return: username that the connection belongs to
+        """
+        dict_copy = self.all_clients
+
+        for username in dict_copy.keys():
+            if dict_copy[username].socket_connection == conn:
+                return username
+
+    def get_client_from_username(self, username):
+
+        client = self.all_clients.get(username, None)
+
+        return client
+
     def initialize_threads(self):
-
-        # TODO Monitor threads for crashes
-
-        self.server.socket_create()
-        self.server.socket_bind()
+        """
+        This method initializes the threads that the server runs on, it also checks whether the threads are dead, if
+        they are dead, it revives them, if it can't it reports back.
+        :return:
+        """
+        self.comm_layer.socket_create()
+        self.comm_layer.socket_bind()
 
         """ Accept connections from multiple clients and save to list """
-        for c in self.server.all_connections:
+        for c in self.all_connections:
             c.close()
-        self.server.all_connections = [self.server.socket]
+        self.all_connections = [self.comm_layer.socket]
 
         receive_thread = threading.Thread(target=self.check_for_messages)
         receive_thread.setName("Receive Thread")
@@ -302,35 +400,47 @@ class SocketServerController(object):
         ping_thread.setName("Ping Thread")
         ping_thread.start()
 
-
         # Experimental
         while self.status:
             if not receive_thread.is_alive():
                 self.logger.error("[Main Thread] receive thread is dead")
-                receive_thread = threading.Thread(target=self.check_for_messages)
-                receive_thread.setName("Receive Thread")
-                receive_thread.start()
+                try:
+                    receive_thread = threading.Thread(target=self.check_for_messages)
+                    receive_thread.setName("Receive Thread")
+                    receive_thread.start()
+                except Exception as e:
+                    self.logger.error("[Main Thread] Cannot revive receive thread " + str(e))
+                    self.logger.error("[Main Thread] " + str(traceback.format_exc()))
 
             if not send_thread.is_alive():
                 self.logger.error("[Main Thread] send thread is dead")
-                send_thread = threading.Thread(target=self.send_messages)
-                send_thread.setName("Send Thread")
-                send_thread.start()
+                try:
+                    send_thread = threading.Thread(target=self.send_messages)
+                    send_thread.setName("Send Thread")
+                    send_thread.start()
+                except Exception as e:
+                    self.logger.error("[Main Thread] Cannot revive send thread " + str(e))
+                    self.logger.error("[Main Thread] " + str(traceback.format_exc()))
 
             if not message_router_thread.is_alive():
                 self.logger.error("[Main Thread] message_router thread is dead")
-                message_router_thread = threading.Thread(target=self.message_routing)
-                message_router_thread.setName("Message Router Thread")
-                message_router_thread.start()
+                try:
+                    message_router_thread = threading.Thread(target=self.message_routing)
+                    message_router_thread.setName("Message Router Thread")
+                    message_router_thread.start()
+                except Exception as e:
+                    self.logger.error("[Main Thread] Cannot revive message router thread " + str(e))
+                    self.logger.error("[Main Thread] " + str(traceback.format_exc()))
 
             if not ping_thread.is_alive():
                 self.logger.error("[Main Thread] ping thread is dead")
-                ping_thread = threading.Thread(target=self.ping)
-                ping_thread.setName("Ping Thread")
-                ping_thread.start()
+                try:
+                    ping_thread = threading.Thread(target=self.ping)
+                    ping_thread.setName("Ping Thread")
+                    ping_thread.start()
+                except Exception as e:
+                    self.logger.error("[Main Thread] Cannot revive ping thread " + str(e))
+                    self.logger.error("[Main Thread] " + str(traceback.format_exc()))
 
             time.sleep(1)
         print("server controller shutting down")
-
-
-

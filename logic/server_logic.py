@@ -34,7 +34,7 @@ class ServerLogic(object):
     def ui(self):
         while self.server_controller.status:
             try:
-                print("Please input command [ssh, read_messages, info]")
+                print("Please input command [ssh, read_messages, info, tools]")
                 user_input = input()
                 if user_input == "read_messages":
                     self.ui_read_messages()
@@ -43,17 +43,49 @@ class ServerLogic(object):
                     self.ui_ssh()
                 elif user_input == "info":
                     self.ui_info()
+                elif user_input == "tools":
+                    self.ui_tools()
 
             except EOFError as e:
                 ColorPrint.print_message("Error", "UI", "Exception occurred " + str(e))
         print("UI Terminating")
+
+    def ui_tools(self):
+        print("[Tools Panel]")
+        print("--------------Options------------")
+        print("\n")
+        print("1) Disconnect a client")
+        user_input = input()
+        if user_input == "1":
+
+            available_clients = self.server_controller.list_available_client_usernames()
+            i = 0
+            for client in available_clients:
+                print(str(i) + " " + client)
+                i += 1
+            print(str(len(available_clients)) + " Cancel")
+
+            # Never trust the user
+            try:
+                user_input = input()
+                if int(user_input) < len(available_clients):
+
+                    user = list(available_clients)[int(user_input)]
+                    self.server_controller.remove_client(self.server_controller.all_clients[user])
+
+                else:
+                    pass
+            except Exception as e:
+                print("Invalid input " + str(e))
+
+
 
     def ui_info(self):
         print("[Information Panel]")
         print("-------Connected Clients--------")
         print("\n")
 
-        dict_copy = self.server_controller.server.all_clients
+        dict_copy = self.server_controller.all_clients
 
         counter = 0
         for username in dict_copy.keys():
@@ -66,11 +98,11 @@ class ServerLogic(object):
         print("------All connections-------")
         print("\n")
         counter = 0
-        for connection in self.server_controller.server.all_connections:
+        for connection in self.server_controller.all_connections:
             if counter > 0:
                 (ip, port) = connection.getpeername()
                 print(str(counter) + ") " + str(
-                    ip) + " username " + self.server_controller.server.get_username_from_connection(connection))
+                    ip) + " username " + self.server_controller.get_username_from_connection(connection))
             else:
                 print(str(counter) + ") " + str(connection))
             counter += 1
@@ -108,7 +140,7 @@ class ServerLogic(object):
 
         if user_input == "1":
             print("[SSH MENU 2] Select Client")
-            available_clients = self.server_controller.server.list_available_client_usernames()
+            available_clients = self.server_controller.list_available_client_usernames()
             i = 0
             for client in available_clients:
                 print(str(i) + " " + client)
@@ -140,7 +172,7 @@ class ServerLogic(object):
 
         elif user_input == "2":
             print("[SSH MENU] Select Client to Close Connection")
-            available_clients = self.server_controller.server.list_available_client_usernames()
+            available_clients = self.server_controller.list_available_client_usernames()
             i = 0
             for client in available_clients:
                 print(str(i) + " " + client)
