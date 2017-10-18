@@ -40,6 +40,7 @@ V 0.0.17 (Future)
 - Work on Agility
 
 V 0.0.16 (Future)  
+- [Bug Fix] Clients connections are much more reliable
 - Authenticate clients 
 - Log events in tables
 - Clean up object and class names

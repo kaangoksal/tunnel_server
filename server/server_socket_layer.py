@@ -42,7 +42,7 @@ therefore your json encode would raise WTF error.
 
 class ServerSocketLayer(object):
 
-    def __init__(self, port, host=''):
+    def __init__(self, port, logger = None, host=''):
         """
         The init method of the class
         :param port: the server is going to bind
@@ -52,19 +52,21 @@ class ServerSocketLayer(object):
         self.port = port
         self.socket = None
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
+        #self.logger = logging.getLogger(__name__)
+        self.logger = logger
+        print("Socket layer logger", self.logger)
+        #self.logger.setLevel(logging.INFO)
 
-        handler = logging.FileHandler('server.log')
+        #handler = logging.FileHandler('server.log')
 
         # this would ruin the server console...
         # console_out = logging.StreamHandler(sys.stdout)
         # self.logger.addHandler(console_out)
 
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
+        #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        #handler.setFormatter(formatter)
 
-        self.logger.addHandler(handler)
+        #self.logger.addHandler(handler)
 
         self.logger.info("server started")
 

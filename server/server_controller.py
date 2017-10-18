@@ -17,24 +17,17 @@ from handler.message_handler import MessageHandler
 
 
 class SocketServerController(object):
-    def __init__(self, comm_layer):
+    def __init__(self, comm_layer, logger = None):
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger = logger
+
+        print("Server controller logger ", self.logger)
 
         # Dictionary of client_username:client object
         self.all_clients = {}
 
         # Dictionary of socket connections
         self.all_connections = []
-
-        handler = logging.FileHandler('server.log')
-        handler.setLevel(logging.INFO)
-
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-
-        self.logger.addHandler(handler)
         self.logger.info("Server started")
 
         self.comm_layer = comm_layer
