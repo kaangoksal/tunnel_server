@@ -1,11 +1,12 @@
-from color_print import ColorPrint
-import time
-from Message import Message
+import datetime
 import json
 import signal
 import sys
 import threading
-import datetime
+import time
+
+from models.Message import Message
+from utility.color_print import ColorPrint
 
 
 class ServerLogic(object):
@@ -20,7 +21,7 @@ class ServerLogic(object):
 
     def register_signal_handler(self):
         """
-        This method registers signal handlers which will do certain stuff before the server terminates
+        This method registers signal handlers which will do certain stuff before the core terminates
         :return:
         """
         signal.signal(signal.SIGINT, self.quit_gracefully)
@@ -160,7 +161,7 @@ class ServerLogic(object):
                                "parameters": json.dumps(parameters),
                                "command": "SSH-Start"}
 
-                    new_message = Message("server",
+                    new_message = Message("core",
                                           list(available_clients)[int(user_input)],
                                           "action", json.dumps(payload))
 
@@ -189,7 +190,7 @@ class ServerLogic(object):
                                "parameters": json.dumps(parameters),
                                "command": "SSH-Stop"}
 
-                    close_ssh_message = Message("server",
+                    close_ssh_message = Message("core",
                                                 list(available_clients)[int(user_input)],
                                                 "action",
                                                 json.dumps(payload))

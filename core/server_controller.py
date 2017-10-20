@@ -1,23 +1,21 @@
-from Message import Message
-from Message import MessageType
-import logging
-from color_print import ColorPrint
-import select
-import threading
-import json
-import time
 import datetime
+import json
+import select
 import signal
 import sys
+import threading
+import time
 import traceback
-
 from queue import Queue
-from server.client import socket_client
-from handler.message_handler import MessageHandler
+
+from models.Message import Message
+from models.Message import MessageType
+from models.client import socket_client
+from utility.color_print import ColorPrint
 
 
 class SocketServerController(object):
-    def __init__(self, comm_layer, logger = None):
+    def __init__(self, socket_layer, message_handler, logger=None):
 
         self.logger = logger
 
@@ -30,7 +28,7 @@ class SocketServerController(object):
         self.all_connections = []
         self.logger.info("Server started")
 
-        self.comm_layer = comm_layer
+        self.socket_layer = socket_layer
         self.inbox_queue = Queue()
         self.outbox_queue = Queue()
 
@@ -40,9 +38,11 @@ class SocketServerController(object):
         self.ping_timer_time = 20
         self.ping_deadline = 60
 
-        self.message_handler = None
-        # This object is responsible from reporting events
-        self.event_notifier = None
+        self.message_handler = message_handler
+
+        # registers the server to the message handler
+        self.message_handler.initialize(self)
+
         self.status = True
 
     def start(self):
@@ -65,19 +65,17 @@ class SocketServerController(object):
 
     def register_signal_handler(self):
         """
-        This method registers signal handlers which will do certain stuff before the server terminates
+        This method registers signal handlers which will do certain stuff before the core terminates
         :return:
         """
         signal.signal(signal.SIGINT, self.quit_gracefully)
         signal.signal(signal.SIGTERM, self.quit_gracefully)
         return
 
-    def quit_gracefully(self, signal=None, frame=None):
+    def quit_gracefully(self):
         """
-        This is for termination of the server, it is supposed to cleanup nicely, however due to the code which checks
+        This is for termination of the core, it is supposed to cleanup nicely, however due to the code which checks
         for thread health, this does not cleanup nicely.
-        :param signal:
-        :param frame:
         :return:
         """
         self.status = False
@@ -85,12 +83,12 @@ class SocketServerController(object):
         self.logger.info("[quit gracefully] quitting gracefully")
         for conn in self.all_connections:
             try:
-                self.comm_layer.close_connection(conn)
+                self.socket_layer.close_connection(conn)
             except Exception as e:
                 self.logger.error("[quit gracefully] could not close connection " + str(e))
                 self.logger.error("[quit gracefully] " + str(traceback.format_exc()))
                 # continue
-        self.comm_layer.close_connection(self.comm_layer.socket)
+        self.socket_layer.close_connection(self.socket_layer.socket)
         sys.exit(0)
 
     def ping(self):
@@ -100,17 +98,17 @@ class SocketServerController(object):
         :return: nothing
         """
         while self.status:
-            client_usernames = self.all_clients.keys()
-            for client_username in list(client_usernames):
-                client = self.all_clients.get(client_username, None)
-                if client is not None:
+            client_username_list = self.all_clients.keys()
+            for client_username in list(client_username_list):
+                client_object = self.all_clients.get(client_username, None)
+                if client_object is not None:
                     seconds = int(round(time.time()))
-                    if seconds - client.last_ping < self.ping_deadline:
+                    if seconds - client_object.last_ping < self.ping_deadline:
                         # used to send a ping message
                         pass
                     else:
                         # This means that client was not removed so we can remove it!
-                        self.remove_client(client)
+                        self.remove_client(client_object)
 
             time.sleep(self.ping_timer_time)
 
@@ -118,17 +116,20 @@ class SocketServerController(object):
 
     def remove_client(self, client, reason=None):
         """
-        This method removes the client from the server in a higher level, it creates the appropriate messages,
+        This method removes the client from the core in a higher level, it creates the appropriate messages,
         logs the time stamp and such. In future mysql will also log sesion time here.
-        :param client: the client object that is being removed from the server
+        :param client: the client object that is being removed from the core
+        :param reason: will be implemented in future
         :return: nothing, literally nothing
         """
         total_session_time = datetime.datetime.now() - client.connection_time
 
-        ColorPrint.print_message("Warning", "remove_client", "kicking the client " + str(client.username) + " Reason " + str(reason))
+        ColorPrint.print_message("Warning", "remove_client",
+                                 "kicking the client " + str(client.username) + " Reason " + str(reason))
 
         self.logger.warning("Kicking client  "
-                            + str(client.username) + " Total Session Time " + str(total_session_time) + " Reason " + str(reason))
+                            + str(client.username) + " Total Session Time " + str(
+            total_session_time) + " Reason " + str(reason))
         # cleaning up the sockets and such
         client_conn = client.socket_connection
 
@@ -137,14 +138,14 @@ class SocketServerController(object):
 
             self.all_connections.remove(client_conn)
 
-            self.comm_layer.close_connection(client_conn)
+            self.socket_layer.close_connection(client_conn)
 
         except Exception as e:
             # Probably client is already removed
             self.logger.error("[remove client] remove_client error " + str(e))
             self.logger.error("[remove client] " + str(traceback.format_exc()))
 
-        client_disconnected_message = Message("server", "server", "event",
+        client_disconnected_message = Message("core", "core", "event",
                                               "Client Disconnected " + str(client) + " Reason " + str(reason))
         self.inbox_queue.put(client_disconnected_message)
 
@@ -162,17 +163,17 @@ class SocketServerController(object):
 
     def accept_connections(self):
         """
-        This method accepts connections, however this method is called by check for messages, if the own server socket
+        This method accepts connections, however this method is called by check for messages, if the own core socket
         is readable then this method is called to accept the incoming connection, later on new socket is created!
         This method accepts the connection without authenticating it.
         :return: nothing
         """
-        conn, address = self.comm_layer.socket.accept()
-        # If set blocking is 0 server does not wait for message and this try block fails.
+        conn, address = self.socket_layer.socket.accept()
+        # If set blocking is 0 core does not wait for message and this try block fails.
         conn.setblocking(1)
 
         # This is a special message since it is authentication
-        json_string = self.comm_layer.read_message_from_connection(conn).decode("utf-8")
+        json_string = self.socket_layer.read_message_from_connection(conn).decode("utf-8")
 
         print("Accepting connection " + str(json_string))
 
@@ -199,7 +200,7 @@ class SocketServerController(object):
         # Put the newly connected client to the list
         self.all_clients[username] = new_client
         # Push a message to the queue to notify that a new client is connected
-        client_connected_message = Message(username, "server", "event", "Connected")
+        client_connected_message = Message(username, "core", "event", "Connected")
 
         self.inbox_queue.put(client_connected_message)
 
@@ -229,7 +230,7 @@ class SocketServerController(object):
 
     def check_for_messages(self):
         """
-        This method checks for messages using select, if the readable port is the own server port, it means that we have
+        This method checks for messages using select, if the readable port is the own core port, it means that we have
         an incomming connection request, so we call accept connection for that.
         :return:
         """
@@ -239,7 +240,7 @@ class SocketServerController(object):
 
             for connection in readable:
                 # print("reading conn " + str(connection))
-                if connection is self.comm_layer.socket:
+                if connection is self.socket_layer.socket:
                     try:
                         self.accept_connections()
                     except Exception as e:
@@ -252,7 +253,7 @@ class SocketServerController(object):
                 else:
 
                     try:
-                        received_message = self.comm_layer.read_message_from_connection(connection)
+                        received_message = self.socket_layer.read_message_from_connection(connection)
                         # print("Received " + str(received_message))
 
                         username = self.get_username_from_connection(connection)
@@ -325,7 +326,7 @@ class SocketServerController(object):
         client.last_ping = seconds
 
         ping_payload = {"utility_group": "ping"}
-        ping_message = Message("server", message.sender, MessageType.utility, ping_payload)
+        ping_message = Message("core", message.sender, MessageType.utility, ping_payload)
         self.send_message_to_client(ping_message)
 
     def handle_comms(self, message):
@@ -334,7 +335,7 @@ class SocketServerController(object):
     def _pass_message_to_comm_layer(self, client_username, message):
         client = self.all_clients[client_username]
         client_socket = client.socket_connection
-        self.comm_layer.send_message_to_socket(client_socket, message)
+        self.socket_layer.send_message_to_socket(client_socket, message)
 
     def list_available_client_usernames(self):
         """
@@ -365,17 +366,17 @@ class SocketServerController(object):
 
     def initialize_threads(self):
         """
-        This method initializes the threads that the server runs on, it also checks whether the threads are dead, if
+        This method initializes the threads that the core runs on, it also checks whether the threads are dead, if
         they are dead, it revives them, if it can't it reports back.
         :return:
         """
-        self.comm_layer.socket_create()
-        self.comm_layer.socket_bind()
+        self.socket_layer.socket_create()
+        self.socket_layer.socket_bind()
 
         """ Accept connections from multiple clients and save to list """
         for c in self.all_connections:
             c.close()
-        self.all_connections = [self.comm_layer.socket]
+        self.all_connections = [self.socket_layer.socket]
 
         receive_thread = threading.Thread(target=self.check_for_messages)
         receive_thread.setName("Receive Thread")
@@ -436,4 +437,4 @@ class SocketServerController(object):
                     self.logger.error("[Main Thread] " + str(traceback.format_exc()))
 
             time.sleep(1)
-        print("server controller shutting down")
+        print("core controller shutting down")

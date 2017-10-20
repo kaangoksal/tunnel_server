@@ -13,23 +13,11 @@ from enum import Enum
 class Message(object):
 
     """
-    {   sender: "raspi1",
-        to: "server",
-        type: "event",
-        date: datetime.datetime.now(),
-        receive_date: None
-        payload: { "event_type" : "motion" }
-
-    }
-
-
-    {   sender: "raspi1",
-        to: "server",
-        type: "utility",
-        date: datetime.datetime.now(),
-        receive_date: None
-        payload: { "utility_group" : "ping"}
-
+    {
+        "payload": "{\"utility_type\": \"PING\"}",
+        "sender": "server",
+        "to": "floatingPi",
+        "type": "utility"
     }
 
 

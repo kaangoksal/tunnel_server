@@ -6,15 +6,22 @@ Date: 4 September 2017
 
 """
 
-from Message import Message
-from Message import MessageType
-# TODO implement logger
+from models.Message import Message
+from models.Message import MessageType
 
 
 class UtilityHandler(object):
     def __init__(self, server=None):
         self.utility_handlers = {}
         self.server = server
+        self.logger = None
+
+    def initialize(self,server):
+        self.server = server
+        if self.server is not None:
+            self.logger = self.server.logger
+        else:
+            print("ERROR! UtilityHandler is not initialized properly")
 
     def handle_message(self, message):
         payload = message.payload
@@ -29,9 +36,10 @@ class UtilityHandler(object):
         client.update_last_ping()
 
         ping_payload = {"utility_group": "ping"}
-        ping_message = Message("server", message.sender, MessageType.utility, ping_payload)
+        ping_message = Message("core", message.sender, MessageType.utility, ping_payload)
+        self.logger.debug("[handle_ping], replying ping message " + str(ping_message))
         self.server.send_message_to_client(ping_message)
 
     def __str__(self):
-        return "MessageHandler Object with " + str(self.utility_handlers)
+        return "UtilityHandler Object with " + str(self.utility_handlers)
 
