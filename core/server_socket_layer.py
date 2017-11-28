@@ -42,40 +42,34 @@ therefore your json encode would raise WTF error.
 
 class ServerSocketLayer(object):
 
-    def __init__(self, port, host=''):
+    def __init__(self, port, logger = None, host=''):
         """
         The init method of the class
-        :param port: the server is going to bind
-        :param host: the host that the server is going to bind.
+        :param port: the core is going to bind
+        :param host: the host that the core is going to bind.
         """
         self.host = host
         self.port = port
         self.socket = None
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
+        #self.logger = logging.getLogger(__name__)
+        self.logger = logger
+        print("Socket layer logger", self.logger)
+        #self.logger.setLevel(logging.INFO)
 
-        handler = logging.FileHandler('server.log')
+        #handlers = logging.FileHandler('core.log')
 
-        # this would ruin the server console...
+        # this would ruin the core console...
         # console_out = logging.StreamHandler(sys.stdout)
         # self.logger.addHandler(console_out)
 
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
+        #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        #handlers.setFormatter(formatter)
 
-        self.logger.addHandler(handler)
+        #self.logger.addHandler(handlers)
 
-        self.logger.info("server started")
+        self.logger.info("core started")
 
-    # def register_signal_handler(self):
-    #     """
-    #     This method registers signal handlers which will do certain stuff before the server terminates
-    #     :return:
-    #     """
-    #     signal.signal(signal.SIGINT, self.quit_gracefully)
-    #     signal.signal(signal.SIGTERM, self.quit_gracefully)
-    #     return
     def close_connection(self, connection):
         try:
             connection.shutdown(2)
@@ -132,12 +126,8 @@ class ServerSocketLayer(object):
         # TODO throw socket closed exception
         """ Sends message to the client
             :param client: the socket of the client
-            :param output_str: string message that will go to the server
+            :param output_str: string message that will go to the core
         """
-        # if isinstance(client, str):
-        #     client = self.all_clients[client]
-        #
-        #     client_socket = client.socket_connection
 
         byte_array_message = str.encode(output_str)
         # We are packing the length of the packet to
