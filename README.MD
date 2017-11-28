@@ -13,6 +13,8 @@ Please make sure that it is not a sudo user and shell is disabled for the client
 the server needs to have the public key of the clients  
 and the operator needs to know the username and the password for the clients (username is sent but the password will be predefined)  
 
+**Requirements**
+sudo apt-get install sqlite3
 
 
 **Version History**  
@@ -40,6 +42,7 @@ V 0.0.17 (Future)
 - Work on Agility
 
 V 0.0.16 (Future)  
+- [Bug Fix] Clients connections are much more reliable
 - Authenticate clients 
 - Log events in tables
 - Clean up object and class names
