@@ -8,6 +8,7 @@ Author: Kaan Goksal
 import datetime
 import json
 from enum import Enum
+import pickle
 
 
 class Message(object):
@@ -48,6 +49,24 @@ class Message(object):
                        }
         return_string = json.dumps(return_dict, sort_keys=True, indent=4, separators=(',', ': '))
         return return_string
+
+    def pack_to_pickle(self):
+        """
+        This method packs the message into a pickle object
+        :return: a pickle object in a byte array
+        """
+
+        return pickle.dumps(self)
+
+    @staticmethod
+    def unpack_from_pickle(pickle_byte_object):
+        """
+        This method unpacks a pickle message object into a message object, be aware, pickle is not
+        fucking safe! Do not accept pickles from unauthorized, untrusted sources
+        :param pickle_byte_object: the pickle message object as a byte array
+        :return: a message object
+        """
+        return pickle.loads(pickle_byte_object)
 
     @staticmethod
     def json_string_to_message(json_string):

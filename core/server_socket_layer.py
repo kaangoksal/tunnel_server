@@ -11,7 +11,7 @@ Author: Kaan Goksal
 # TODO add SSL
 # TODO Revise docs,
 # TODO authentication for accept connections, Can use RSA
-# TODO Cross device compability?
+# TODO Cross device compatibility? This needs to be implemented where you add the packet length
 
 import socket
 import sys
